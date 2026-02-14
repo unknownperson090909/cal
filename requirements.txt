@@ -1,0 +1,24 @@
+# Core Telegram Bot (MUST HAVE)
+python-telegram-bot==21.0.1
+
+# HTTP & Web (MUST HAVE)
+aiohttp==3.9.3
+requests==2.31.0
+urllib3
+certifi
+idna
+charset-normalizer
+
+# Image Processing (MUST HAVE)
+pillow==10.2.0
+
+# Utilities
+python-dotenv
+pytz
+json5
+rich
+colorama
+
+# Web Server (for deployment only)
+Flask
+gunicorn
