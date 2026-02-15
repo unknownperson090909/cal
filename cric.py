@@ -15587,9 +15587,7 @@ async def startregistration_command(update: Update, context: ContextTypes.DEFAUL
     # Check if registration is active
     if group_id not in REGISTRATION_ACTIVE:
         await update.message.reply_text(
-            "🏏 <b>No Active Registration!</b>
-
-Start registration first with /registration",
+            "🏏 <b>No Active Registration!</b> Start registration first with /registration",
             parse_mode=ParseMode.HTML
         )
         return
@@ -15597,9 +15595,7 @@ Start registration first with /registration",
     # Get base price from args
     if not context.args:
         await update.message.reply_text(
-            "🏏 <b>Usage:</b> <code>/startregistration &lt;base_price&gt;</code>
-
-"
+            "🏏 <b>Usage:</b> <code>/startregistration &lt;base_price&gt;</code>"
             "Example: <code>/startregistration 50</code>",
             parse_mode=ParseMode.HTML
         )
@@ -15619,18 +15615,11 @@ Start registration first with /registration",
     reg_link = f"https://t.me/{bot_username}?start=reg_{group_id}_{base_price}"
     
     await update.message.reply_text(
-        f"🏏 <b>Registration Link Generated!</b>
-
-"
-        f"💰 <b>Base Price:</b> {base_price}
-
-"
+        f"🏏 <b>Registration Link Generated!</b>"
+        f"💰 <b>Base Price:</b> {base_price}"
         f"🔗 <b>Link:</b>
-<code>{reg_link}</code>
-
-"
-        f"👉 Share this link with players!
-"
+<code>{reg_link}</code>"
+        f"👉 Share this link with players!"
         f"When they click it, they'll be automatically registered.",
         parse_mode=ParseMode.HTML
     )
