@@ -109,7 +109,10 @@ class GamePhase(Enum):
     INNINGS_BREAK = "innings_break"
     MATCH_ENDED = "match_ended"
     SUPER_OVER = "super_over"
-    SUPER_OVER_BREAK = "super_over_break"    
+    SUPER_OVER_BREAK = "super_over_break"
+    
+    # ... MAGIC BALL MODE ...
+    MAGIC_BALL = "magic_ball"    
 
     # ... SOLO PHASES (New) ...
     SOLO_JOINING = "solo_joining"
@@ -320,6 +323,93 @@ GIFS = {
         "new_bid": ["BAACAgUAAyEFAATU3pgLAAIhK2lXsq5nKvtUiwSNwlc4vRBN-0hQAAL1HwACpRG5Vv3LUjEcqvc3OAQ","BAACAgUAAxkBAAKKUGl2eicY0MbJQ_uv4NISNVvy0GSmAAMgAAKlEblW73Hg2GAFEus4BA", "BAACAgUAAyEFAATU3pgLAAIhBGlXsiH-BCEE2TJ8qHN6KuJRB86yAAL4HwACpRG5VjZDzwEmtaV5OAQ" ],
         "auction_unsold": "BAACAgUAAxkBAAJnZWlrYqZkyh9qAAFZXggueErKDJKlnAAC9h8AAqURuVZM9Yj2pY2qpzgE",
     "auction_countdown": "BAACAgUAAxkBAAJnY2lrYlqWBnK_1iVKqcuWYF6UJPo0AAIuGwACb3lYVzOFYEj5-RphOAQ",
+}
+
+# ═══════════════════════════════════════════════════════════════
+# MAGIC BALL MODE - Special Ball Types
+# ═══════════════════════════════════════════════════════════════
+
+class MagicBallType:
+    """Enhanced magic ball types with special effects"""
+    # Original 8
+    FREEZE = "freeze"           # 🧊 Freeze Ball - Guaranteed dot
+    FIRE = "fire"               # 🔥 Fire Ball - Guaranteed six
+    GHOST = "ghost"             # 👻 Ghost Ball - Random hidden result
+    DOUBLE = "double"           # ⚡ Double Ball - Doubles the runs
+    SHIELD = "shield"           # 🛡️ Shield Ball - Cannot get out
+    REVERSE = "reverse"         # 🔄 Reverse Ball - Opponent's number becomes yours
+    WILD = "wild"               # 🎲 Wild Ball - Completely random (0-6)
+    SWAP = "swap"               # 🔀 Swap Ball - Numbers swap between players
+    
+    # NEW - 7 Additional Types!
+    TRIPLE = "triple"           # 💎 Triple Ball - Runs × 3!
+    RAINBOW = "rainbow"         # 🌈 Rainbow Ball - Lucky 7 runs!
+    MAGNET = "magnet"           # 🧲 Magnet Ball - Forces same number (auto dot)
+    LUCKY = "lucky"             # 🍀 Lucky Ball - Random 4, 6, or bonus
+    REWIND = "rewind"           # ⏮️ Rewind Ball - Undo last ball
+    MYSTERY = "mystery"         # 🎭 Mystery Ball - Copy previous ball result
+    JACKPOT = "jackpot"         # 🎰 Jackpot Ball - 0 or 12 runs!
+    
+MAGIC_BALL_EMOJIS = {
+    MagicBallType.FREEZE: "🧊",
+    MagicBallType.FIRE: "🔥",
+    MagicBallType.GHOST: "👻",
+    MagicBallType.DOUBLE: "⚡",
+    MagicBallType.SHIELD: "🛡️",
+    MagicBallType.REVERSE: "🔄",
+    MagicBallType.WILD: "🎲",
+    MagicBallType.SWAP: "🔀",
+    # NEW
+    MagicBallType.TRIPLE: "💎",
+    MagicBallType.RAINBOW: "🌈",
+    MagicBallType.MAGNET: "🧲",
+    MagicBallType.LUCKY: "🍀",
+    MagicBallType.REWIND: "⏮️",
+    MagicBallType.MYSTERY: "🎭",
+    MagicBallType.JACKPOT: "🎰",
+}
+
+MAGIC_BALL_NAMES = {
+    MagicBallType.FREEZE: "Freeze Ball",
+    MagicBallType.FIRE: "Fire Ball",
+    MagicBallType.GHOST: "Ghost Ball",
+    MagicBallType.DOUBLE: "Double Ball",
+    MagicBallType.SHIELD: "Shield Ball",
+    MagicBallType.REVERSE: "Reverse Ball",
+    MagicBallType.WILD: "Wild Ball",
+    MagicBallType.SWAP: "Swap Ball",
+    # NEW
+    MagicBallType.TRIPLE: "Triple Ball",
+    MagicBallType.RAINBOW: "Rainbow Ball",
+    MagicBallType.MAGNET: "Magnet Ball",
+    MagicBallType.LUCKY: "Lucky Ball",
+    MagicBallType.REWIND: "Rewind Ball",
+    MagicBallType.MYSTERY: "Mystery Ball",
+    MagicBallType.JACKPOT: "Jackpot Ball",
+}
+
+# Magic ball probabilities (per ball - 30% chance - ENHANCED!)
+MAGIC_BALL_PROBABILITY = 0.30
+
+# Distribution of magic ball types (ENHANCED - 15 types!)
+MAGIC_BALL_WEIGHTS = {
+    # Original 8 types
+    MagicBallType.FREEZE: 12,
+    MagicBallType.FIRE: 8,
+    MagicBallType.GHOST: 15,
+    MagicBallType.DOUBLE: 12,
+    MagicBallType.SHIELD: 12,
+    MagicBallType.REVERSE: 8,
+    MagicBallType.WILD: 8,
+    MagicBallType.SWAP: 5,
+    # NEW 7 types
+    MagicBallType.TRIPLE: 5,      # Rare - very powerful
+    MagicBallType.RAINBOW: 4,     # Very rare - lucky 7
+    MagicBallType.MAGNET: 10,     # Common - forced dot
+    MagicBallType.LUCKY: 10,      # Common - bonus runs
+    MagicBallType.REWIND: 3,      # Super rare - time travel
+    MagicBallType.MYSTERY: 8,     # Uncommon - mimic
+    MagicBallType.JACKPOT: 2,     # Ultra rare - all or nothing
 }
 
 # --- GLOBAL HELPER FUNCTION (FIXED) ---
@@ -1058,6 +1148,7 @@ class Player:
         self.dot_balls_bowled = 0
         self.boundaries = 0
         self.sixes = 0
+        self.dots = 0  # Track dot balls
         self.overs_bowled = 0
         self.maiden_overs = 0
         self.no_balls = 0
@@ -1553,16 +1644,17 @@ def get_commentary(event_type: str, group_id: int = None, user_id: int = None) -
     return fallback.get(event_type, "Interesting delivery!")
 
 def save_match_stats(match, winner_team, loser_team):
-    """Save match statistics - FIXED VERSION"""
+    """Save match statistics - ENHANCED WITH COMPLETE TRACKING"""
     try:
+        # Save winner team stats
         for player in winner_team.players:
             user_id = player.user_id
-            init_player_stats(user_id)  # Ensure stats exist
+            init_player_stats(user_id)
             
             stats = player_stats[user_id]
             team_stats = stats.get("team", {})
             
-            # FIXED: Use both 'matches' and 'matches_played' for compatibility
+            # Complete stat tracking
             team_stats["matches"] = team_stats.get("matches", 0) + 1
             team_stats["matches_played"] = team_stats.get("matches_played", 0) + 1
             team_stats["wins"] = team_stats.get("wins", 0) + 1
@@ -1571,12 +1663,13 @@ def save_match_stats(match, winner_team, loser_team):
             team_stats["wickets"] = team_stats.get("wickets", 0) + player.wickets
             team_stats["fours"] = team_stats.get("fours", 0) + player.boundaries
             team_stats["sixes"] = team_stats.get("sixes", 0) + player.sixes
+            team_stats["dots"] = team_stats.get("dots", 0) + getattr(player, 'dots', 0)
             
             # Update highest score
             if player.runs > team_stats.get("highest", 0):
                 team_stats["highest"] = player.runs
             
-            # Check for milestones
+            # Milestone tracking
             if player.runs >= 100:
                 team_stats["centuries"] = team_stats.get("centuries", 0) + 1
             elif player.runs >= 50:
@@ -1587,7 +1680,7 @@ def save_match_stats(match, winner_team, loser_team):
             stats["team"] = team_stats
             player_stats[user_id] = stats
         
-        # Similar for loser team but without wins increment
+        # Save loser team stats (everything except wins)
         for player in loser_team.players:
             user_id = player.user_id
             init_player_stats(user_id)
@@ -1598,13 +1691,29 @@ def save_match_stats(match, winner_team, loser_team):
             team_stats["matches"] = team_stats.get("matches", 0) + 1
             team_stats["matches_played"] = team_stats.get("matches_played", 0) + 1
             team_stats["runs"] = team_stats.get("runs", 0) + player.runs
-            # ... rest similar to above
+            team_stats["balls"] = team_stats.get("balls", 0) + player.balls_faced
+            team_stats["wickets"] = team_stats.get("wickets", 0) + player.wickets
+            team_stats["fours"] = team_stats.get("fours", 0) + player.boundaries
+            team_stats["sixes"] = team_stats.get("sixes", 0) + player.sixes
+            team_stats["dots"] = team_stats.get("dots", 0) + getattr(player, 'dots', 0)
+            
+            # Update highest score
+            if player.runs > team_stats.get("highest", 0):
+                team_stats["highest"] = player.runs
+            
+            # Milestone tracking
+            if player.runs >= 100:
+                team_stats["centuries"] = team_stats.get("centuries", 0) + 1
+            elif player.runs >= 50:
+                team_stats["fifties"] = team_stats.get("fifties", 0) + 1
+            elif player.runs == 0 and player.balls_faced > 0:
+                team_stats["ducks"] = team_stats.get("ducks", 0) + 1
             
             stats["team"] = team_stats
             player_stats[user_id] = stats
         
         save_data()
-        logger.info("✅ Match stats saved successfully")
+        logger.info("✅ Match stats saved with complete tracking")
         
     except Exception as e:
         logger.error(f"❌ Stats save error: {e}")
@@ -2353,6 +2462,69 @@ async def rotate_solo_bowler(context, chat_id, match, force_new_bowler=False):
 # Start command handler
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Welcome message with Add to Group button"""
+    
+    # Check for registration deep link
+    if context.args and context.args[0].startswith('reg_'):
+        try:
+            parts = context.args[0].split('_')
+            group_id = int(parts[1])
+            base_price = int(parts[2])
+            
+            user_id = update.effective_user.id
+            username = update.effective_user.username or 'NoUsername'
+            full_name = update.effective_user.full_name
+            
+            # Check if already registered
+            conn = sqlite3.connect(TOURNAMENT_DB_PATH)
+            c = conn.cursor()
+            c.execute('SELECT user_id FROM registered_players WHERE user_id = ? AND group_id = ?', (user_id, group_id))
+            if c.fetchone():
+                conn.close()
+                await update.message.reply_text(
+                    "⚠️ <b>Already Registered!</b>\n\nYou are already registered for this tournament.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+            
+            # Register the player
+            c.execute(
+                'INSERT INTO registered_players (group_id, user_id, username, full_name, base_price, registered_at) VALUES (?, ?, ?, ?, ?, ?)',
+                (group_id, user_id, username, full_name, base_price, datetime.now())
+            )
+            conn.commit()
+            conn.close()
+            
+            # Send confirmation to user
+            await update.message.reply_text(
+                f"✅ <b>Registration Successful!</b>\n\n"
+                f"👤 Name: {full_name}\n"
+                f"💰 Base Price: {base_price}\n"
+                f"📊 User ID: <code>{user_id}</code>\n\n"
+                f"You have been registered for the tournament!",
+                parse_mode=ParseMode.HTML
+            )
+            
+            # Notify in group (if bot is in group)
+            try:
+                await context.bot.send_message(
+                    chat_id=group_id,
+                    text=(
+                        f"🎉 <b>New Registration!</b>\n\n"
+                        f"👤 {full_name} (@{username})\n"
+                        f"💰 Base Price: {base_price}\n"
+                        f"🆔 User ID: <code>{user_id}</code>"
+                    ),
+                    parse_mode=ParseMode.HTML
+                )
+            except:
+                pass  # Bot might not be in group
+            
+            return
+        except Exception as e:
+            logger.error(f"Registration link error: {e}")
+            await update.message.reply_text("❌ Registration failed! Invalid link or error occurred.")
+            return
+
     user = update.effective_user
     chat = update.effective_chat
     
@@ -5669,6 +5841,37 @@ async def commentary_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer()
     
+    chat_id = query.message.chat.id
+    user = query.from_user
+    
+    # Validate match exists
+    if chat_id not in active_matches:
+        await query.answer("No active match!", show_alert=True)
+        return
+    
+    match = active_matches[chat_id]
+    
+    # Extract commentary choice from callback data
+    commentary_type = query.data.replace('gcommentary_', '')
+    
+    # Set the commentary type
+    match.commentary_style = commentary_type
+    
+    await query.answer(f"Commentary set to: {commentary_type.upper()}", show_alert=True)
+    
+    # Update the message
+    try:
+        await query.edit_message_text(
+            f"✅ <b>Commentary Updated!</b>\n\n"
+            f"📺 <b>Style:</b> {commentary_type.upper()}\n\n"
+            f"The match will now use {commentary_type} commentary!",
+            parse_mode=ParseMode.HTML
+        )
+    except:
+        pass
+    
+    return
+    
     user = query.from_user
     data = query.data
     
@@ -7358,6 +7561,87 @@ async def extendsolo_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 # AI MODE - PLAY VS BOT IN DM
 # ═══════════════════════════════════════════════════════════════
 
+async def magicball_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🎯 Start Magic Ball Mode - Special balls with unique effects!"""
+    group_id = update.effective_chat.id
+    
+    # Check if match already active
+    if group_id in active_matches:
+        await update.message.reply_text(
+            "⚠️ <b>Match Already Active!</b>\n\n"
+            "End the current match first with /end",
+            parse_mode=ParseMode.HTML
+        )
+        return
+    
+    # Create match with magic ball mode enabled
+    match = Match(group_id=group_id, group_name=update.effective_chat.title or "Group")
+    match.phase = GamePhase.TEAM_JOINING
+    match.magic_ball_mode = True  # Enable magic balls
+    match.mode = "magic_ball"
+    active_matches[group_id] = match
+    
+    # Welcome message with magic ball info
+    text = "╔═══════════════════════╗\n"
+    text += "    🎯 <b>MAGIC BALL MODE</b>\n"
+    text += "╚═══════════════════════╝\n\n"
+    
+    text += "✨ <b>Special balls can appear randomly!</b>\n\n"
+    
+    text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += "🎨 <b>MAGIC BALL TYPES:</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    
+    text += "🧊 <b>Freeze Ball</b>\n   └ Guaranteed dot ball!\n\n"
+    text += "🔥 <b>Fire Ball</b>\n   └ Guaranteed SIX!\n\n"
+    text += "👻 <b>Ghost Ball</b>\n   └ Hidden result revealed later!\n\n"
+    text += "⚡ <b>Double Ball</b>\n   └ Runs × 2!\n\n"
+    text += "🛡️ <b>Shield Ball</b>\n   └ Cannot get out!\n\n"
+    text += "🔄 <b>Reverse Ball</b>\n   └ Get opponent's number!\n\n"
+    text += "🎲 <b>Wild Ball</b>\n   └ Completely random!\n\n"
+    text += "🔀 <b>Swap Ball</b>\n   └ Numbers swap!\n\n"
+    
+    text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += "⚡ <b>Chance: 15% per ball</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    text += "💎 <b>Triple Ball</b>\n   └ Runs × 3!\n\n"
+    text += "🌈 <b>Rainbow Ball</b>\n   └ Lucky 7 runs!\n\n"
+    text += "🧲 <b>Magnet Ball</b>\n   └ Forced dot!\n\n"
+    text += "🍀 <b>Lucky Ball</b>\n   └ Bonus runs (4-10)!\n\n"
+    text += "⏮️ <b>Rewind Ball</b>\n   └ Ball doesn't count!\n\n"
+    text += "🎭 <b>Mystery Ball</b>\n   └ Mimic previous!\n\n"
+    text += "🎰 <b>Jackpot Ball</b>\n   └ 0 or 12 runs!\n\n"
+    
+    text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += "⚡ <b>Chance: 30% per ball</b>\n"
+    text += "🎯 <b>15 UNIQUE TYPES!</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    
+    text += "👥 <b>Click buttons below to join!</b>"
+    
+    keyboard = [
+        [InlineKeyboardButton("🧊 Join Team X", callback_data="join_team_x"),
+         InlineKeyboardButton("🔥 Join Team Y", callback_data="join_team_y")],
+        [InlineKeyboardButton("🚪 Leave Team", callback_data="leave_team")]
+    ]
+    
+    try:
+        msg = await update.message.reply_photo(
+            photo=MEDIA_ASSETS.get("mode_selection", "https://i.imgur.com/placeholder.png"),
+            caption=text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.HTML
+        )
+        match.main_message_id = msg.message_id
+        await context.bot.pin_chat_message(group_id, msg.message_id)
+    except:
+        msg = await update.message.reply_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.HTML
+        )
+        match.main_message_id = msg.message_id
+
 async def aistart_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start AI match in DM"""
     user = update.effective_user
@@ -7603,12 +7887,16 @@ async def ai_choice_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     choice = query.data.split("_")[-1]  # bat or bowl
     
     if choice == "bowl":
-        # User bowls, AI bats first
-        match["innings"] = 2
-        match["phase"] = "waiting_ai"
+        # User bowls, AI bats first - FIXED
+        match["innings"] = 1  # First innings
+        match["target"] = 0   # No target yet
+        match["phase"] = "waiting_user"  # Waiting for user to bowl
+        match["ai_batting_first"] = True  # Track that AI is batting in first innings
         
         msg = f"⚾ <b>YOU CHOSE TO BOWL!</b>\n\n"
-        msg += "🤖 AI is batting first."
+        msg += "🤖 AI is batting first.\n\n"
+        msg += "⚾ <b>You're bowling!</b>\n"
+        msg += "Send a number (0-6) to bowl your first delivery!"
         
         try:
             await query.message.delete()
@@ -7621,9 +7909,6 @@ async def ai_choice_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             caption=msg,
             parse_mode=ParseMode.HTML
         )
-        
-        await asyncio.sleep(2)
-        await ai_bat_innings(context, user.id)
     else:
         # User bats first
         msg = f"🏏 <b>YOU CHOSE TO BAT!</b>\n\n"
@@ -7803,13 +8088,14 @@ async def ai_bat_innings(context: ContextTypes.DEFAULT_TYPE, user_id: int):
 
 
 async def ai_bat_ball(context: ContextTypes.DEFAULT_TYPE, user_id: int, user_bowl: int):
-    """AI plays a single ball when user is bowling"""
+    """AI plays a single ball when user is bowling - FIXED FOR FIRST INNINGS"""
     if user_id not in ai_matches:
         return
     
     match = ai_matches[user_id]
     difficulty = match["difficulty"]
-    target = match["target"]
+    target = match.get("target", 0)
+    is_first_innings = match.get("ai_batting_first", False) and match["innings"] == 1
     
     # AI batting logic - IMPROVED DIFFICULTY
     if difficulty == "easy":
@@ -7871,18 +8157,46 @@ async def ai_bat_ball(context: ContextTypes.DEFAULT_TYPE, user_id: int, user_bow
     
     # Process result
     if ai_bat == user_bowl:
-        # WICKET! - Only 1 wicket = match over
+        # WICKET!
         match["ai_wickets"] = 1
         match["ai_balls"] += 1
         
         result_msg = f"🎯 <b>WICKET!</b>\n\n"
         result_msg += f"You bowled: {user_bowl} | AI: {ai_bat}\n\n"
         result_msg += f"📊 AI Final: {match['ai_score']}/1 ({match['ai_balls']//6}.{match['ai_balls']%6})\n"
-        result_msg += f"🎯 Needed: {target - match['ai_score']} more runs\n"
         
-        # AI is out - user wins
-        await ai_end_match(context, user_id, "user_won")
-        return
+        if is_first_innings:
+            # First innings wicket - AI innings ends, now user bats
+            result_msg += f"\n━━━━━━━━━━━━━━━━━━━━━━\n"
+            result_msg += f"<b>AI INNINGS ENDED!</b>\n"
+            result_msg += f"🎯 <b>Target for you: {match['ai_score'] + 1}</b>\n\n"
+            result_msg += "🏏 Now you're batting!\n"
+            result_msg += "Send a number (0-6) to start batting!"
+            
+            try:
+                await context.bot.send_animation(
+                    user_id,
+                    animation=random.choice(GIFS[MatchEvent.WICKET]),
+                    caption=result_msg,
+                    parse_mode=ParseMode.HTML
+                )
+            except:
+                await context.bot.send_message(user_id, result_msg, parse_mode=ParseMode.HTML)
+            
+            # Switch to second innings
+            match["target"] = match["ai_score"] + 1
+            match["innings"] = 2
+            match["ai_batting_first"] = False
+            match["phase"] = "waiting_user"
+            
+            await asyncio.sleep(2)
+            await ai_play_ball(context, user_id)
+            return
+        else:
+            # Second innings wicket - AI is out, user wins
+            result_msg += f"🎯 Needed: {target - match['ai_score']} more runs\n"
+            await ai_end_match(context, user_id, "user_won")
+            return
     else:
         # Runs!
         match["ai_score"] += ai_bat
@@ -7894,15 +8208,46 @@ async def ai_bat_ball(context: ContextTypes.DEFAULT_TYPE, user_id: int, user_bow
         result_msg += f"📊 AI: {match['ai_score']}/{match['ai_wickets']} ({match['ai_balls']//6}.{match['ai_balls']%6})\n"
         result_msg += f"🎯 Need: {target - match['ai_score']} runs\n"
         
-        # Check if target chased
-        if match["ai_score"] >= target:
-            await ai_end_match(context, user_id, "ai_won")
-            return
-        
-        # Check if overs complete
-        if match["ai_balls"] >= match["overs"] * 6:
-            await ai_end_match(context, user_id, "user_won")
-            return
+        # Check if first innings or second innings
+        if is_first_innings:
+            # First innings - check if overs complete
+            if match["ai_balls"] >= match["overs"] * 6:
+                # First innings complete, user bats now
+                result_msg += f"\n━━━━━━━━━━━━━━━━━━━━━━\n"
+                result_msg += f"<b>AI INNINGS COMPLETE!</b>\n"
+                result_msg += f"🎯 <b>Target: {match['ai_score'] + 1}</b>\n\n"
+                result_msg += "🏏 Now you're batting!\n"
+                result_msg += "Send a number (0-6) to start!"
+                
+                try:
+                    await context.bot.send_animation(
+                        user_id,
+                        animation=random.choice(GIFS.get(MatchEvent.INNINGS_BREAK, GIFS[MatchEvent.DOT_BALL])),
+                        caption=result_msg,
+                        parse_mode=ParseMode.HTML
+                    )
+                except:
+                    await context.bot.send_message(user_id, result_msg, parse_mode=ParseMode.HTML)
+                
+                # Switch to second innings
+                match["target"] = match["ai_score"] + 1
+                match["innings"] = 2
+                match["ai_batting_first"] = False
+                match["phase"] = "waiting_user"
+                
+                await asyncio.sleep(2)
+                await ai_play_ball(context, user_id)
+                return
+        else:
+            # Second innings - check if target chased
+            if match["ai_score"] >= target:
+                await ai_end_match(context, user_id, "ai_won")
+                return
+            
+            # Check if overs complete
+            if match["ai_balls"] >= match["overs"] * 6:
+                await ai_end_match(context, user_id, "user_won")
+                return
         
         try:
             # Send appropriate GIF
@@ -7933,8 +8278,9 @@ async def ai_bat_ball(context: ContextTypes.DEFAULT_TYPE, user_id: int, user_bow
         match["phase"] = "waiting_user"
         match["ai_number"] = None
         
-        await asyncio.sleep(1)
-        await context.bot.send_message(user_id, "⚾ Send your next delivery (0-6)!", parse_mode=ParseMode.HTML)
+        if not is_first_innings:
+            await asyncio.sleep(1)
+            await context.bot.send_message(user_id, "⚾ Send your next delivery (0-6)!", parse_mode=ParseMode.HTML)
 
 
 async def ai_end_match(context: ContextTypes.DEFAULT_TYPE, user_id: int, result: str):
@@ -8012,6 +8358,285 @@ async def ai_end_match(context: ContextTypes.DEFAULT_TYPE, user_id: int, result:
     # Remove match
     del ai_matches[user_id]
 
+
+
+
+async def process_magic_ball(user_num: int, opponent_num: int, match_context: dict) -> dict:
+    """
+    Process magic ball effects
+    Returns: {
+        'runs': int,
+        'is_wicket': bool,
+        'message': str,
+        'magic_type': str or None,
+        'reveal_delay': float (seconds to wait before revealing)
+    }
+    """
+    # Check if magic ball triggers (15% chance)
+    if random.random() > MAGIC_BALL_PROBABILITY:
+        # Normal ball
+        if user_num == opponent_num:
+            return {
+                'runs': 0,
+                'is_wicket': True,
+                'message': None,
+                'magic_type': None,
+                'reveal_delay': 0
+            }
+        else:
+            return {
+                'runs': user_num,
+                'is_wicket': False,
+                'message': None,
+                'magic_type': None,
+                'reveal_delay': 0
+            }
+    
+    # Magic ball triggered! Select type
+    types = list(MAGIC_BALL_WEIGHTS.keys())
+    weights = list(MAGIC_BALL_WEIGHTS.values())
+    magic_type = random.choices(types, weights=weights)[0]
+    
+    emoji = MAGIC_BALL_EMOJIS[magic_type]
+    name = MAGIC_BALL_NAMES[magic_type]
+    
+    # Process based on type
+    if magic_type == MagicBallType.FREEZE:
+        # 🧊 Freeze Ball - Guaranteed dot
+        return {
+            'runs': 0,
+            'is_wicket': False,
+            'message': f"{emoji} <b>{name.upper()}!</b>\n\n❄️ You are frozen! No runs possible!\n\nYour: {user_num} | Opp: {opponent_num}",
+            'magic_type': magic_type,
+            'reveal_delay': 0
+        }
+    
+    elif magic_type == MagicBallType.FIRE:
+        # 🔥 Fire Ball - Guaranteed six
+        return {
+            'runs': 6,
+            'is_wicket': False,
+            'message': f"{emoji} <b>{name.upper()}!</b>\n\n💥 BOOM! Guaranteed SIX!\n\nYour: {user_num} | Opp: {opponent_num}",
+            'magic_type': magic_type,
+            'reveal_delay': 0
+        }
+    
+    elif magic_type == MagicBallType.GHOST:
+        # 👻 Ghost Ball - Random hidden result with reveal
+        ghost_result = random.choice([0, 1, 4, 6, 'wicket'])
+        
+        if ghost_result == 'wicket':
+            is_wicket = True
+            runs = 0
+            reveal_msg = "👻 GHOST REVEALED: WICKET! 💀"
+        else:
+            is_wicket = False
+            runs = ghost_result
+            reveal_msg = f"👻 GHOST REVEALED: {runs} RUNS! 🎃"
+        
+        return {
+            'runs': runs,
+            'is_wicket': is_wicket,
+            'message': f"{emoji} <b>{name.upper()}!</b>\n\n🌫️ Result hidden...\n👁️ Revealing soon...\n\nYour: {user_num} | Opp: {opponent_num}",
+            'magic_type': magic_type,
+            'reveal_delay': 3,  # 3 seconds delay
+            'reveal_message': reveal_msg
+        }
+    
+    elif magic_type == MagicBallType.DOUBLE:
+        # ⚡ Double Ball - Doubles the runs
+        if user_num == opponent_num:
+            # Wicket, but doubled effect cancels it (lucky!)
+            return {
+                'runs': 0,
+                'is_wicket': False,
+                'message': f"{emoji} <b>{name.upper()}!</b>\n\n🍀 LUCKY! Double effect saved you from wicket!\n\nYour: {user_num} | Opp: {opponent_num}",
+                'magic_type': magic_type,
+                'reveal_delay': 0
+            }
+        else:
+            doubled_runs = user_num * 2
+            return {
+                'runs': doubled_runs,
+                'is_wicket': False,
+                'message': f"{emoji} <b>{name.upper()}!</b>\n\n⚡ Runs DOUBLED!\n📊 {user_num} × 2 = {doubled_runs} runs!\n\nYour: {user_num} | Opp: {opponent_num}",
+                'magic_type': magic_type,
+                'reveal_delay': 0
+            }
+    
+    elif magic_type == MagicBallType.SHIELD:
+        # 🛡️ Shield Ball - Cannot get out
+        if user_num == opponent_num:
+            # Shield protects from wicket
+            return {
+                'runs': 1,  # Get 1 run instead of wicket
+                'is_wicket': False,
+                'message': f"{emoji} <b>{name.upper()}!</b>\n\n🛡️ PROTECTED! Shield saved you!\n🎁 Bonus: 1 run granted!\n\nYour: {user_num} | Opp: {opponent_num}",
+                'magic_type': magic_type,
+                'reveal_delay': 0
+            }
+        else:
+            # Normal runs
+            return {
+                'runs': user_num,
+                'is_wicket': False,
+                'message': f"{emoji} <b>{name.upper()}!</b>\n\n🛡️ Shield active (no effect on runs)\n📊 {user_num} runs scored!\n\nYour: {user_num} | Opp: {opponent_num}",
+                'magic_type': magic_type,
+                'reveal_delay': 0
+            }
+    
+    elif magic_type == MagicBallType.REVERSE:
+        # 🔄 Reverse Ball - Opponent's number becomes yours
+        if user_num == opponent_num:
+            # Same number - reverse does nothing, just normal dot
+            return {
+                'runs': 0,
+                'is_wicket': False,
+                'message': f"{emoji} <b>{name.upper()}!</b>\n\n🔄 Numbers reversed but were same!\n📊 Dot ball!\n\nYour: {user_num} | Opp: {opponent_num}",
+                'magic_type': magic_type,
+                'reveal_delay': 0
+            }
+        else:
+            # You get opponent's number as runs
+            return {
+                'runs': opponent_num,
+                'is_wicket': False,
+                'message': f"{emoji} <b>{name.upper()}!</b>\n\n🔄 REVERSED! You scored opponent's number!\n📊 {opponent_num} runs!\n\nYour: {user_num} | Opp: {opponent_num}",
+                'magic_type': magic_type,
+                'reveal_delay': 0
+            }
+    
+    elif magic_type == MagicBallType.WILD:
+        # 🎲 Wild Ball - Completely random (0-6)
+        wild_runs = random.randint(0, 6)
+        return {
+            'runs': wild_runs,
+            'is_wicket': False,
+            'message': f"{emoji} <b>{name.upper()}!</b>\n\n🎲 CHAOS! Random result!\n📊 {wild_runs} runs!\n\nYour: {user_num} | Opp: {opponent_num}",
+            'magic_type': magic_type,
+            'reveal_delay': 0
+        }
+    
+    elif magic_type == MagicBallType.SWAP:
+        # 🔀 Swap Ball - Numbers swap
+        if user_num == opponent_num:
+            # Same number, swap does nothing
+            return {
+                'runs': 0,
+                'is_wicket': False,
+                'message': f"{emoji} <b>{name.upper()}!</b>\n\n🔀 Numbers swapped but were same!\n📊 Dot ball!\n\nYour: {user_num} | Opp: {opponent_num}",
+                'magic_type': magic_type,
+                'reveal_delay': 0
+            }
+        else:
+            # Swap: you get opponent's number
+            return {
+                'runs': opponent_num,
+                'is_wicket': False,
+                'message': f"{emoji} <b>{name.upper()}!</b>\n\n🔀 SWAPPED! You got {opponent_num}, they got {user_num}!\n📊 {opponent_num} runs!\n\nOriginal - Your: {user_num} | Opp: {opponent_num}\nSwapped - Your: {opponent_num} | Opp: {user_num}",
+                'magic_type': magic_type,
+                'reveal_delay': 0
+            }
+    
+    elif magic_type == MagicBallType.TRIPLE:
+        # 💎 Triple Ball - Runs × 3!
+        if user_num == opponent_num:
+            # Triple effect saves from wicket and gives triple runs!
+            return {
+                'runs': user_num * 3,
+                'is_wicket': False,
+                'message': f"{emoji} <b>{name.upper()}!</b>\n\n💎 TRIPLE POWER! Saved from wicket!\n📊 {user_num} × 3 = {user_num * 3} runs!\n\nYour: {user_num} | Opp: {opponent_num}",
+                'magic_type': magic_type,
+                'reveal_delay': 0
+            }
+        else:
+            tripled_runs = user_num * 3
+            return {
+                'runs': tripled_runs,
+                'is_wicket': False,
+                'message': f"{emoji} <b>{name.upper()}!</b>\n\n💎 TRIPLE POWER!\n📊 {user_num} × 3 = {tripled_runs} runs!\n\nYour: {user_num} | Opp: {opponent_num}",
+                'magic_type': magic_type,
+                'reveal_delay': 0
+            }
+    
+    elif magic_type == MagicBallType.RAINBOW:
+        # 🌈 Rainbow Ball - Lucky 7 runs!
+        return {
+            'runs': 7,
+            'is_wicket': False,
+            'message': f"{emoji} <b>{name.upper()}!</b>\n\n🌈 LUCKY SEVEN!\n🎊 Magical 7 runs granted!\n\nYour: {user_num} | Opp: {opponent_num}",
+            'magic_type': magic_type,
+            'reveal_delay': 0
+        }
+    
+    elif magic_type == MagicBallType.MAGNET:
+        # 🧲 Magnet Ball - Forces both numbers to be same (guaranteed dot)
+        return {
+            'runs': 0,
+            'is_wicket': False,
+            'message': f"{emoji} <b>{name.upper()}!</b>\n\n🧲 MAGNETIC FORCE!\n Numbers pulled together!\n📊 Forced dot ball!\n\nYour: {user_num} | Opp: {opponent_num} → Both became same!",
+            'magic_type': magic_type,
+            'reveal_delay': 0
+        }
+    
+    elif magic_type == MagicBallType.LUCKY:
+        # 🍀 Lucky Ball - Random bonus (4, 6, or special)
+        lucky_options = [4, 6, 8, 10]
+        lucky_runs = random.choice(lucky_options)
+        return {
+            'runs': lucky_runs,
+            'is_wicket': False,
+            'message': f"{emoji} <b>{name.upper()}!</b>\n\n🍀 LUCKY CHARM!\n🎁 Bonus: {lucky_runs} runs!\n\nYour: {user_num} | Opp: {opponent_num}",
+            'magic_type': magic_type,
+            'reveal_delay': 0
+        }
+    
+    elif magic_type == MagicBallType.REWIND:
+        # ⏮️ Rewind Ball - Nullifies this ball (like it never happened)
+        return {
+            'runs': 0,
+            'is_wicket': False,
+            'message': f"{emoji} <b>{name.upper()}!</b>\n\n⏮️ TIME REVERSED!\n⏱️ This ball doesn't count!\n🔄 Ball will be replayed!\n\nYour: {user_num} | Opp: {opponent_num}",
+            'magic_type': magic_type,
+            'reveal_delay': 0,
+            'special_flag': 'rewind'  # Special flag to replay ball
+        }
+    
+    elif magic_type == MagicBallType.MYSTERY:
+        # 🎭 Mystery Ball - Copies last ball's result
+        mystery_runs = random.randint(0, 6)  # Random if no previous ball
+        return {
+            'runs': mystery_runs,
+            'is_wicket': False,
+            'message': f"{emoji} <b>{name.upper()}!</b>\n\n🎭 MYSTERY MIMIC!\n📋 Result: {mystery_runs} runs!\n\nYour: {user_num} | Opp: {opponent_num}",
+            'magic_type': magic_type,
+            'reveal_delay': 0
+        }
+    
+    elif magic_type == MagicBallType.JACKPOT:
+        # 🎰 Jackpot Ball - Either 0 or 12 runs (50-50)
+        jackpot_result = random.choice([0, 12])
+        if jackpot_result == 0:
+            msg = f"{emoji} <b>{name.upper()}!</b>\n\n🎰 JACKPOT SPIN!\n💔 Bad luck! 0 runs!\n\nYour: {user_num} | Opp: {opponent_num}"
+        else:
+            msg = f"{emoji} <b>{name.upper()}!</b>\n\n🎰 JACKPOT SPIN!\n🎊 MEGA WIN! 12 runs!\n\nYour: {user_num} | Opp: {opponent_num}"
+        
+        return {
+            'runs': jackpot_result,
+            'is_wicket': False,
+            'message': msg,
+            'magic_type': magic_type,
+            'reveal_delay': 0
+        }
+    
+    # Fallback (should never reach here)
+    return {
+        'runs': user_num if user_num != opponent_num else 0,
+        'is_wicket': user_num == opponent_num,
+        'message': None,
+        'magic_type': None,
+        'reveal_delay': 0
+    }
 
 async def end_innings(context: ContextTypes.DEFAULT_TYPE, group_id: int, match: Match):
     """
@@ -10358,6 +10983,59 @@ async def bidder_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def aucplayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """🤝 Bulk add players to auction"""
+    
+    # Enhanced to support username, @mention, and user_id
+    if not context.args or len(context.args) < 2:
+        await update.message.reply_text(
+            "🏏 <b>Usage:</b>\n"
+            "<code>/aucplayer @username base_price</code>\n"
+            "<code>/aucplayer username base_price</code>\n"
+            "<code>/aucplayer user_id base_price</code>\n\n"
+            "<b>Examples:</b>\n"
+            "<code>/aucplayer @john 50</code>\n"
+            "<code>/aucplayer john 50</code>\n"
+            "<code>/aucplayer 123456789 50</code>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+    
+    player_identifier = context.args[0]
+    base_price = int(context.args[1])
+    
+    # Try to get player info from database first
+    user_id = None
+    player_name = None
+    
+    # Check if it's a user_id (all digits)
+    if player_identifier.isdigit():
+        user_id = int(player_identifier)
+        # Try to get name from database
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('SELECT first_name FROM user_stats WHERE user_id = ?', (user_id,))
+        result = c.fetchone()
+        if result:
+            player_name = result[0]
+        conn.close()
+    else:
+        # It's a username - clean it
+        username = player_identifier.lstrip('@')
+        # Try to find in database by username
+        conn = sqlite3.connect(TOURNAMENT_DB_PATH)
+        c = conn.cursor()
+        c.execute('SELECT user_id, full_name FROM registered_players WHERE username = ?', (username,))
+        result = c.fetchone()
+        if result:
+            user_id, player_name = result
+        conn.close()
+    
+    # If still not found, use identifier as name
+    if not player_name:
+        player_name = player_identifier
+    if not user_id:
+        # Generate a temporary ID based on username hash
+        user_id = abs(hash(player_identifier)) % 1000000000
+
     chat = update.effective_chat
     user = update.effective_user
     if chat.id not in active_auctions:
@@ -13277,6 +13955,12 @@ async def handle_dm_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         match = ai_matches[user.id]
         
+        # Check if AI is batting in first innings (user is bowling)
+        if match.get("ai_batting_first") and match["innings"] == 1:
+            # User is bowling to AI in first innings
+            await ai_bat_ball(context, user.id, num)
+            return
+        
         # User is batting
         if match["phase"] == "waiting_user" and match["innings"] == 1:
             ai_num = match.get("ai_number")
@@ -14890,6 +15574,67 @@ async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.MARKDOWN
     )
 
+
+
+async def startregistration_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🏏 Generate registration link for a base price"""
+    if update.effective_chat.type == 'private':
+        await update.message.reply_text("🏏 Use this command in the tournament group!")
+        return
+    
+    group_id = update.effective_chat.id
+    
+    # Check if registration is active
+    if group_id not in REGISTRATION_ACTIVE:
+        await update.message.reply_text(
+            "🏏 <b>No Active Registration!</b>
+
+Start registration first with /registration",
+            parse_mode=ParseMode.HTML
+        )
+        return
+    
+    # Get base price from args
+    if not context.args:
+        await update.message.reply_text(
+            "🏏 <b>Usage:</b> <code>/startregistration &lt;base_price&gt;</code>
+
+"
+            "Example: <code>/startregistration 50</code>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+    
+    try:
+        base_price = int(context.args[0])
+    except:
+        await update.message.reply_text("🏏 Invalid base price! Use a number.")
+        return
+    
+    # Get bot username
+    bot = await context.bot.get_me()
+    bot_username = bot.username
+    
+    # Generate registration link
+    reg_link = f"https://t.me/{bot_username}?start=reg_{group_id}_{base_price}"
+    
+    await update.message.reply_text(
+        f"🏏 <b>Registration Link Generated!</b>
+
+"
+        f"💰 <b>Base Price:</b> {base_price}
+
+"
+        f"🔗 <b>Link:</b>
+<code>{reg_link}</code>
+
+"
+        f"👉 Share this link with players!
+"
+        f"When they click it, they'll be automatically registered.",
+        parse_mode=ParseMode.HTML
+    )
+
 async def reg_group_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle group selection for registration"""
     query = update.callback_query
@@ -15027,38 +15772,48 @@ async def tpower_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"🏏 Power granted to {target_name} for group `{group_id}`", parse_mode=ParseMode.MARKDOWN)
 
 async def registeredlist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """🏏 Export registered players list"""
-    if pd is None:
-        await update.message.reply_text("🏏 Excel export not available! Install pandas.")
-        return
-    
+    """🏏 Show registered players list in specific format"""
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    chat_type = update.effective_chat.type
     
-    if update.effective_chat.type == 'private':
+    # Get group_id
+    if chat_type == 'private':
         if not context.args:
-            await update.message.reply_text("🏏 Usage: `/registeredlist <group_id>`", parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(
+                "🏏 <b>Usage:</b> <code>/registeredlist &lt;group_id&gt;</code>",
+                parse_mode=ParseMode.HTML
+            )
             return
         try:
             group_id = int(context.args[0])
         except:
-            await update.message.reply_text("🏏 Invalid group ID!")
+            await update.message.reply_text("🏏 Invalid group ID!", parse_mode=ParseMode.HTML)
             return
     else:
-        group_id = update.effective_chat.id
-    
-    if user_id not in [OWNER_ID, SECOND_APPROVER_ID] and (user_id, group_id) not in TOURNAMENT_POWER_USERS:
-        conn = sqlite3.connect(TOURNAMENT_DB_PATH)
-        c = conn.cursor()
-        c.execute('SELECT user_id FROM tournament_power_users WHERE user_id = ? AND group_id = ?', (user_id, group_id))
-        if not c.fetchone():
-            await update.message.reply_text("🏏 No permission!")
-            conn.close()
+        group_id = chat_id
+        # Check if user is admin in the group
+        try:
+            member = await context.bot.get_chat_member(group_id, user_id)
+            if member.status not in ['creator', 'administrator']:
+                await update.message.reply_text(
+                    "🏏 <b>Admin Only!</b>
+
+Only group admins can use this command in groups.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+        except:
+            await update.message.reply_text("🏏 Error checking permissions!")
             return
-        conn.close()
     
+    # Fetch registered players
     conn = sqlite3.connect(TOURNAMENT_DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT user_id, username, full_name, base_price, registered_at FROM registered_players WHERE group_id = ? ORDER BY registered_at', (group_id,))
+    c.execute(
+        'SELECT user_id, username, full_name, base_price FROM registered_players WHERE group_id = ? ORDER BY base_price DESC, registered_at',
+        (group_id,)
+    )
     players = c.fetchall()
     c.execute('SELECT group_name FROM tournament_groups WHERE group_id = ?', (group_id,))
     result = c.fetchone()
@@ -15066,23 +15821,53 @@ async def registeredlist_command(update: Update, context: ContextTypes.DEFAULT_T
     conn.close()
     
     if not players:
-        await update.message.reply_text(f"🏏 No players registered yet for {group_name}!")
+        await update.message.reply_text(
+            f"🏏 <b>No Registered Players</b>
+
+Tournament: {group_name}",
+            parse_mode=ParseMode.HTML
+        )
         return
     
-    df = pd.DataFrame(players, columns=['User ID', 'Username', 'Full Name', 'Base Price', 'Registered At'])
-    excel_file = f"/tmp/registered_{abs(group_id)}.xlsx"
-    df.to_excel(excel_file, index=False, engine='openpyxl')
+    # Group players by base price (descending order)
+    from collections import defaultdict
+    price_groups = defaultdict(list)
+    for user_id_p, username, full_name, base_price in players:
+        price_groups[base_price].append({
+            'user_id': user_id_p,
+            'username': username or 'No Username',
+            'full_name': full_name
+        })
     
-    try:
-        with open(excel_file, 'rb') as f:
-            await update.message.reply_document(
-                document=f,
-                filename=f"registered_{group_name.replace(' ', '_')}.xlsx",
-                caption=f"🏏 Registered Players\nTournament: {group_name}\nTotal: {len(players)} players"
-            )
-    finally:
-        if os.path.exists(excel_file):
-            os.remove(excel_file)
+    # Build formatted message
+    message = f"🏏 <b>REGISTERED PLAYERS - {group_name}</b>
+
+"
+    
+    # Sort prices in descending order (50, 30, 20, 10)
+    sorted_prices = sorted(price_groups.keys(), reverse=True)
+    
+    for price in sorted_prices:
+        message += "---------------
+"
+        message += f"<b>{price} Base Price</b>
+"
+        message += "---------------
+"
+        
+        for idx, player in enumerate(price_groups[price], 1):
+            message += f"{idx}.) {player['full_name']} (@{player['username']})
+"
+            message += f"    <code>{player['user_id']}</code>
+"
+        
+        message += "
+"
+    
+    message += f"
+📊 <b>Total Players:</b> {len(players)}"
+    
+    await update.message.reply_text(message, parse_mode=ParseMode.HTML)
 
 async def auctionset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """🏏 Display auction set - registered players grouped by base price"""
@@ -15301,6 +16086,7 @@ def main():
 
     # ================== AI MODE ==================
     application.add_handler(CommandHandler("aistart", aistart_command))
+    application.add_handler(CommandHandler("magicball", magicball_command))
     application.add_handler(CommandHandler("aistats", aistats_command))
     application.add_handler(CommandHandler("aiquit", aiquit_command))
 
@@ -15314,6 +16100,7 @@ def main():
     # Tournament Registration
     application.add_handler(CommandHandler("groupapprove", groupapprove_tournament_command))
     application.add_handler(CommandHandler("registration", registration_command))
+    application.add_handler(CommandHandler("startregistration", startregistration_command))
     application.add_handler(CommandHandler("days", days_command))
     application.add_handler(CommandHandler("register", register_command))
     application.add_handler(CommandHandler("tpower", tpower_command))
