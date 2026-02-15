@@ -15617,8 +15617,7 @@ async def startregistration_command(update: Update, context: ContextTypes.DEFAUL
     await update.message.reply_text(
         f"🏏 <b>Registration Link Generated!</b>"
         f"💰 <b>Base Price:</b> {base_price}"
-        f"🔗 <b>Link:</b>
-<code>{reg_link}</code>"
+        f"🔗 <b>Link:</b><code>{reg_link}</code>"
         f"👉 Share this link with players!"
         f"When they click it, they'll be automatically registered.",
         parse_mode=ParseMode.HTML
