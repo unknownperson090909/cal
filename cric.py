@@ -15785,9 +15785,7 @@ async def registeredlist_command(update: Update, context: ContextTypes.DEFAULT_T
             member = await context.bot.get_chat_member(group_id, user_id)
             if member.status not in ['creator', 'administrator']:
                 await update.message.reply_text(
-                    "🏏 <b>Admin Only!</b>
-
-Only group admins can use this command in groups.",
+                    "🏏 <b>Admin Only!</b>Only group admins can use this command in groups.",
                     parse_mode=ParseMode.HTML
                 )
                 return
@@ -15810,9 +15808,7 @@ Only group admins can use this command in groups.",
     
     if not players:
         await update.message.reply_text(
-            f"🏏 <b>No Registered Players</b>
-
-Tournament: {group_name}",
+            f"🏏 <b>No Registered Players</b>Tournament: {group_name}",
             parse_mode=ParseMode.HTML
         )
         return
@@ -15828,32 +15824,23 @@ Tournament: {group_name}",
         })
     
     # Build formatted message
-    message = f"🏏 <b>REGISTERED PLAYERS - {group_name}</b>
-
-"
+    message = f"🏏 <b>REGISTERED PLAYERS - {group_name}</b>\n\n"
     
     # Sort prices in descending order (50, 30, 20, 10)
     sorted_prices = sorted(price_groups.keys(), reverse=True)
     
     for price in sorted_prices:
-        message += "---------------
-"
-        message += f"<b>{price} Base Price</b>
-"
-        message += "---------------
-"
+        message += "---------------\n"
+        message += f"<b>{price} Base Price</b>\n"
+        message += "---------------\n"
         
         for idx, player in enumerate(price_groups[price], 1):
-            message += f"{idx}.) {player['full_name']} (@{player['username']})
-"
-            message += f"    <code>{player['user_id']}</code>
-"
+            message += f"{idx}.) {player['full_name']} (@{player['username']})\n"
+            message += f"    <code>{player['user_id']}</code>\n"
         
-        message += "
-"
+        message += "\n"
     
-    message += f"
-📊 <b>Total Players:</b> {len(players)}"
+    message += f"\n📊 <b>Total Players:</b> {len(players)}"
     
     await update.message.reply_text(message, parse_mode=ParseMode.HTML)
 
