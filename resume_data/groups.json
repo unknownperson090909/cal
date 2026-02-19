@@ -1,1 +1,26 @@
-{}
+{
+  "-1003334573423": {
+    "group_id": -1003334573423,
+    "group_name": "Cricoverse Testing",
+    "total_matches": 0,
+    "commentary_style": "shubh"
+  },
+  "-1003601646719": {
+    "group_id": -1003601646719,
+    "group_name": "ILT T10 League",
+    "total_matches": 0,
+    "commentary_style": "english"
+  },
+  "-1003227489554": {
+    "group_id": -1003227489554,
+    "group_name": "ESSSS!",
+    "total_matches": 0,
+    "commentary_style": "english"
+  },
+  "-1003869796534": {
+    "group_id": -1003869796534,
+    "group_name": "\ud835\udc13\ud835\udc1e\ud835\udc25\ud835\udc1e\ud835\udc20\ud835\udc2b\ud835\udc1a\ud835\udc26 \ud835\udc13\ud835\udc22\ud835\udc2d\ud835\udc1a\ud835\udc27\ud835\udc2c \ud835\udc13\ud835\udc2b\ud835\udc28\ud835\udc29\ud835\udc21\ud835\udc32",
+    "total_matches": 0,
+    "commentary_style": "english"
+  }
+}
