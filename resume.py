@@ -3,7 +3,6 @@ CRICOVERSE - Professional Hand Cricket Telegram Bot
 A feature-rich, group-based Hand Cricket game engine
 Fixed version - No circular imports
 """
-
 # ═══════════════════════════════════════════════════════════════
 # STEP 1: Import all standard libraries first
 # ═══════════════════════════════════════════════════════════════
@@ -820,11 +819,49 @@ def init_db():
         ("five_wicket_hauls", "INTEGER DEFAULT 0"),
         ("player_of_match_count", "INTEGER DEFAULT 0"),
         ("last_updated", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        ("total_boundaries", "INTEGER DEFAULT 0"),
+        ("win_streak", "INTEGER DEFAULT 0"),
+        ("hat_tricks", "INTEGER DEFAULT 0"),
+        ("times_not_out", "INTEGER DEFAULT 0"),
+        ("team_matches_played", "INTEGER DEFAULT 0"),
+        ("team_matches_won", "INTEGER DEFAULT 0"),
+        ("team_total_runs", "INTEGER DEFAULT 0"),
+        ("team_total_wickets", "INTEGER DEFAULT 0"),
+        ("team_highest_score", "INTEGER DEFAULT 0"),
+        ("team_total_sixes", "INTEGER DEFAULT 0"),
+        ("team_total_fours", "INTEGER DEFAULT 0"),
+        ("team_best_bowling_wickets", "INTEGER DEFAULT 0"),
+        ("team_best_bowling_runs", "INTEGER DEFAULT 0"),
+        ("team_total_hundreds", "INTEGER DEFAULT 0"),
+        ("team_total_fifties", "INTEGER DEFAULT 0"),
+        ("team_total_ducks", "INTEGER DEFAULT 0"),
+        ("team_total_dots", "INTEGER DEFAULT 0"),
+        ("team_total_balls_faced", "INTEGER DEFAULT 0"),
+        ("team_total_balls_bowled", "INTEGER DEFAULT 0"),
     ]:
         try:
             c.execute(f"ALTER TABLE user_stats ADD COLUMN {col_name} {col_def}")
         except Exception:
             pass
+    
+    # Create ai_stats table for AI mode statistics
+    c.execute('''CREATE TABLE IF NOT EXISTS ai_stats (
+        user_id INTEGER PRIMARY KEY,
+        total_matches INTEGER DEFAULT 0,
+        wins INTEGER DEFAULT 0,
+        losses INTEGER DEFAULT 0,
+        easy_matches INTEGER DEFAULT 0,
+        medium_matches INTEGER DEFAULT 0,
+        hard_matches INTEGER DEFAULT 0,
+        easy_wins INTEGER DEFAULT 0,
+        medium_wins INTEGER DEFAULT 0,
+        hard_wins INTEGER DEFAULT 0,
+        highest_score INTEGER DEFAULT 0,
+        total_runs INTEGER DEFAULT 0,
+        total_sixes INTEGER DEFAULT 0,
+        total_fours INTEGER DEFAULT 0,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
     
     # Create match_history table
     c.execute('''CREATE TABLE IF NOT EXISTS match_history (
@@ -1405,6 +1442,15 @@ class Match:
         self.momentum_history = []  # List of (balls, momentum_score)
         self.current_momentum = 0  # Range: -100 to +100
         self.last_6_balls = []  # Track last 6 balls for momentum
+        # Partnership tracking
+        self.current_partnership_runs = 0
+        self.current_partnership_balls = 0
+        self.partnership_history = []
+        self.longest_partnership_this_match = 0
+        # Over wicket tracking
+        self.team_x_over_wickets = []
+        self.team_y_over_wickets = []
+        self.current_over_wickets = 0
     
     def get_team_by_name(self, name: str) -> Optional[Team]:
         """Get team by name"""
@@ -1552,38 +1598,38 @@ def generate_mini_scorecard(match: Match) -> str:
         last_bowler = bowl_team.players[last_bowler_idx]
     
     # Build Message
-    msg = "🏟️ ═══〔 <b>SCORECARD</b> 〕═══ 🏟️\n\n"
+    msg = "🏟️ <b>〔 MINI SCORECARD 〕</b> 🏟️\n"
+    msg += "━━━━━━━━━━━━━━━━━━━━━━\n"
     
     # Team Scores
-    msg += f"🧢 <b>{match.team_x.name}</b>\n"
-    msg += f"   🏏 {match.team_x.score}/{match.team_x.wickets}  ⏱ ({format_overs(match.team_x.balls)} ov)\n\n"
-    msg += f"🧢 <b>{match.team_y.name}</b>\n"
-    msg += f"   🏏 {match.team_y.score}/{match.team_y.wickets}  ⏱ ({format_overs(match.team_y.balls)} ov)\n"
+    msg += f"🧊 <b>{match.team_x.name}</b>  ➜  {match.team_x.score}/{match.team_x.wickets}  ({format_overs(match.team_x.balls)} ov)\n"
+    msg += f"🔥 <b>{match.team_y.name}</b>  ➜  {match.team_y.score}/{match.team_y.wickets}  ({format_overs(match.team_y.balls)} ov)\n"
     
-    msg += "\n〰〰〰〰〰〰〰〰〰〰〰〰\n\n"
+    if match.innings == 2:
+        runs_needed = match.target - bat_team.score
+        balls_left = (match.total_overs * 6) - bowl_team.balls
+        rrr = round((runs_needed / balls_left) * 6, 2) if balls_left > 0 else 0
+        msg += f"🎯 Need <b>{runs_needed}</b> off <b>{balls_left}</b> balls  ┊  RRR <b>{rrr}</b>\n"
+    
+    msg += "━━━━━━━━━━━━━━━━━━━━━━\n"
     
     # Current Partnership
-    msg += f"⚡ <b>AT THE CREASE — {bat_team.name}</b>\n"
-    msg += f"📊 Run Rate: <b>{current_rr}</b>\n\n"
+    msg += f"⚡ <b>BATTING</b>  ┊  RR: <b>{current_rr}</b>\n"
     
     if striker:
         sr = round((striker.runs / striker.balls_faced) * 100, 1) if striker.balls_faced > 0 else 0
-        msg += f"🟢 <b>{striker.first_name}*</b>  ➜  {striker.runs} ({striker.balls_faced})  │ SR {sr}\n"
+        msg += f"🟢 <b>{striker.first_name}*</b>  {striker.runs}({striker.balls_faced})  SR {sr}\n"
     
     if non_striker:
-        sr = round((non_striker.runs / non_striker.balls_faced) * 100, 1) if non_striker.balls_faced > 0 else 0
-        msg += f"⚪ <b>{non_striker.first_name}</b>   ➜  {non_striker.runs} ({non_striker.balls_faced})  │ SR {sr}\n"
-    
-    msg += "\n"
+        sr2 = round((non_striker.runs / non_striker.balls_faced) * 100, 1) if non_striker.balls_faced > 0 else 0
+        msg += f"⚪ {non_striker.first_name}  {non_striker.runs}({non_striker.balls_faced})  SR {sr2}\n"
     
     # Last Bowler Stats
     if last_bowler:
         econ = round(last_bowler.runs_conceded / max(last_bowler.balls_bowled/6, 0.1), 2)
-        msg += f"🎯 <b>BOWLING — {bowl_team.name}</b>\n"
-        msg += f"🔥 <b>{last_bowler.first_name}</b>  ➜  {last_bowler.wickets}W / {last_bowler.runs_conceded}R"
-        msg += f"  ({format_overs(last_bowler.balls_bowled)} ov)  │ Econ {econ}\n"
-    
-    msg += "\n🏟️ ════════════════════ 🏟️"
+        msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        msg += f"⚾ <b>BOWLING</b>\n"
+        msg += f"🔥 <b>{last_bowler.first_name}</b>  {last_bowler.wickets}W/{last_bowler.runs_conceded}R  ({format_overs(last_bowler.balls_bowled)} ov)  Econ {econ}"
     
     return msg
 
@@ -1636,7 +1682,7 @@ def get_commentary(event_type: str, group_id: int = None, user_id: int = None) -
         style = user_style
     
     # Get commentary based on style
-    if style == "Shubh":
+    if style in ("shubh", "Shubh"):
         comments = SHUBH_SPECIAL.get(event_type, [])
     elif style == "sidhu":
         comments = SIDHU_COMMENTARY.get(event_type, [])
@@ -1971,27 +2017,23 @@ async def scorecard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🏏 Scorecard not available in solo mode")
         return
     
-    text = "╔═════════════════════╗\n"
-    text += "   📊 <b>DETAILED SCORECARD</b>\n"
-    text += "╚═════════════════════╝\n\n"
+    text = "📊 <b>FULL SCORECARD</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━\n"
     
     # First innings (Team X if they batted first, otherwise Team Y)
     first_team = match.batting_first if match.batting_first else match.team_x
     second_team = match.team_y if first_team == match.team_x else match.team_x
     
     # First Innings
-    text += "━━━━━━━━━━━━━━━━━━━━\n"
-    text += f"🔸 <b>{first_team.name}</b> - 1st Innings\n"
-    text += "━━━━━━━━━━━━━━━━━━━━\n"
-    text += f"📈 Score: <b>{first_team.score}/{first_team.wickets}</b>\n"
-    text += f"⏱️ Overs: <b>{first_team.overs}</b>\n"
-    text += f"➕ Extras: {first_team.extras}\n"
+    text += f"🏏 <b>{first_team.name}</b> — 1st Innings\n"
+    text += f"📊 {first_team.score}/{first_team.wickets}  ({first_team.overs} ov)  +{first_team.extras} extras\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━\n"
     
     # Run rate
     rr = (first_team.score / (first_team.balls / 6)) if first_team.balls > 0 else 0
     text += f"📊 Run Rate: <b>{rr:.2f}</b>\n\n"
     
-    text += "┌─ <b>BATTING</b> ───────────┐\n"
+    text += "🏏 <b>BATTING</b>\n"
     batted_count = 0
     for player in first_team.players:
         # Use Player object attributes (always up-to-date)
@@ -2015,8 +2057,7 @@ async def scorecard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Status emoji
             status = "❌" if player.is_out else "🟢"
             
-            text += f"{status} {mention}\n"
-            text += f"   {runs}({balls}) SR: {sr:.1f}"
+            text += f"{status} {mention}  {runs}({balls}) SR:{sr:.1f}"
             
             # Boundaries
             if fours > 0 or sixes > 0:
@@ -2028,8 +2069,9 @@ async def scorecard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += "\n"
             
             if player.is_out and dismissal != 'not out':
-                text += f"   └─ <i>{html.escape(str(dismissal))}</i>\n"
-            text += "\n"
+                text += f"  <i>└ {html.escape(str(dismissal))}</i>\n"
+            else:
+                text += "\n"
     
     if batted_count == 0:
         text += "   <i>No batsmen yet</i>\n"
@@ -2037,7 +2079,7 @@ async def scorecard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text += "└────────────────────┘\n\n"
     
     # Bowling figures for first innings
-    text += "┌─ <b>BOWLING</b> ──────────┐\n"
+    text += "⚾ <b>BOWLING</b>\n"
     bowled_count = 0
     for player in second_team.players:
         balls_bowled = player.balls_bowled
@@ -2059,16 +2101,14 @@ async def scorecard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if bowled_count == 0:
         text += "   <i>No bowlers yet</i>\n"
     
-    text += "└────────────────────┘\n\n"
+    text += "\n"
     
     # Second innings if started
     if match.innings >= 2:
-        text += "━━━━━━━━━━━━━━━━━━━━\n"
-        text += f"🔸 <b>{second_team.name}</b> - 2nd Innings\n"
-        text += "━━━━━━━━━━━━━━━━━━━━\n"
-        text += f"📈 Score: <b>{second_team.score}/{second_team.wickets}</b>\n"
-        text += f"⏱️ Overs: <b>{second_team.overs}</b>\n"
-        text += f"➕ Extras: {second_team.extras}\n"
+        text += "━━━━━━━━━━━━━━━━━━━━━━\n"
+        text += f"🏏 <b>{second_team.name}</b> — 2nd Innings\n"
+        text += f"📊 {second_team.score}/{second_team.wickets}  ({second_team.overs} ov)  +{second_team.extras} extras\n"
+        text += "━━━━━━━━━━━━━━━━━━━━━━\n"
         
         if match.target > 0:
             needed = match.target - second_team.score
@@ -2084,7 +2124,7 @@ async def scorecard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         rr2 = (second_team.score / (second_team.balls / 6)) if second_team.balls > 0 else 0
         text += f"📊 CRR: <b>{rr2:.2f}</b>\n\n"
         
-        text += "┌─ <b>BATTING</b> ───────────┐\n"
+        text += "🏏 <b>BATTING</b>\n"
         batted_count2 = 0
         for player in second_team.players:
             runs = player.runs
@@ -2117,10 +2157,10 @@ async def scorecard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if batted_count2 == 0:
             text += "   <i>No batsmen yet</i>\n"
         
-        text += "└────────────────────┘\n\n"
+        text += "\n"
         
         # Bowling figures for second innings
-        text += "┌─ <b>BOWLING</b> ──────────┐\n"
+        text += "⚾ <b>BOWLING</b>\n"
         bowled_count2 = 0
         for player in first_team.players:
             balls_bowled = player.balls_bowled
@@ -2140,26 +2180,20 @@ async def scorecard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if bowled_count2 == 0:
             text += "   <i>No bowlers yet</i>\n"
         
-        text += "└────────────────────┘\n"
+        text += ""
     
-    text += "\n━━━━━━━━━━━━━━━━━━━━\n"
-    text += "✅ Not Out | ❌ Dismissed\n"
-    text += "4️⃣ Fours | 6️⃣ Sixes | ⚡ Bowling\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += "🟢 Not Out  ·  ❌ Dismissed  ·  4️⃣ Fours  ·  🚀 Sixes"
     
+    group_id_sc = update.effective_chat.id
+    _refresh_kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Refresh Scorecard", callback_data=f"scorecard_refresh_{group_id_sc}")]])
     try:
-        # Send with photo
         try:
-            await update.message.reply_photo(
-                photo=SCORECARD_PHOTO,
-                caption=text,
-                parse_mode=ParseMode.HTML
-            )
+            await update.message.reply_photo(photo=SCORECARD_PHOTO, caption=text, parse_mode=ParseMode.HTML, reply_markup=_refresh_kb)
         except Exception as photo_error:
             logger.error(f"Error sending scorecard photo: {photo_error}")
-            # Fallback to text
-            await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+            await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=_refresh_kb)
     except Exception as e:
-        # Fallback without formatting
         await update.message.reply_text(text.replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "").replace("<a href=\"tg://user?id=", "").replace("\">", " - ").replace("</a>", ""))
 
 async def cleanup_inactive_matches(context: ContextTypes.DEFAULT_TYPE):
@@ -2176,7 +2210,7 @@ async def cleanup_inactive_matches(context: ContextTypes.DEFAULT_TYPE):
                 # Send Time Out Message
                 await context.bot.send_message(
                     chat_id=chat_id,
-                    text="⏰ <b>Game Timeout!</b>\nMatch ended automatically due to 15 mins of inactivity.",
+                    text="⏰ <b>MATCH TIMEOUT!</b>\nGame auto-ended after 15 minutes of inactivity.",
                     parse_mode=ParseMode.HTML
                 )
                 # Unpin message
@@ -2197,7 +2231,7 @@ async def game_timer(context: ContextTypes.DEFAULT_TYPE, group_id: int, match: M
         await asyncio.sleep(30)
         
         # Warning
-        await context.bot.send_message(group_id, f"⏳ <b>Hurry Up {player_name}!</b> 15 seconds left!", parse_mode=ParseMode.HTML)
+        await context.bot.send_message(group_id, f"⏳ <b>Hurry Up {player_name}!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n⚠️ Only <b>15 seconds</b> left — play your ball!", parse_mode=ParseMode.HTML)
         
         # Wait remaining 15 seconds
         await asyncio.sleep(15)
@@ -2245,8 +2279,11 @@ async def handle_timeout_penalties(context: ContextTypes.DEFAULT_TYPE, group_id:
             match.is_free_hit = True # Activate Free Hit
             
             msg = f"⏰ <b>BOWLER TIMEOUT!</b> ({bowler.bowling_timeouts}/3)\n"
+            msg += "━━━━━━━━━━━━━━━━━━━━━━\n"
             msg += "🚫 <b>Result:</b> NO BALL! (+1 Run)\n"
-            msg += "⚡ <b>Next ball is a FREE HIT!</b>"
+            msg += "⚡ <b>Next ball is a FREE HIT!</b>\n"
+            msg += "━━━━━━━━━━━━━━━━━━━━━━\n"
+            msg += "⌛ Bowling timer resetting..."
             await context.bot.send_message(group_id, msg, parse_mode=ParseMode.HTML)
             
             # Reset inputs to allow re-bowl (No ball doesn't count legal ball)
@@ -2280,8 +2317,10 @@ async def handle_timeout_penalties(context: ContextTypes.DEFAULT_TYPE, group_id:
             bat_team.score = max(0, bat_team.score) # Score negative nahi jayega
             
             msg = f"⏰ <b>BATSMAN TIMEOUT!</b> ({striker.batting_timeouts}/3)\n"
+            msg += "━━━━━━━━━━━━━━━━━━━━━━\n"
             msg += "📉 <b>Penalty:</b> -6 Runs!\n"
             msg += f"📊 <b>Score:</b> {bat_team.score}/{bat_team.wickets}\n"
+            msg += "━━━━━━━━━━━━━━━━━━━━━━\n"
             msg += "🔄 <b>Ball Counted.</b> (Dot Ball)"
             await context.bot.send_message(group_id, msg, parse_mode=ParseMode.HTML)
             
@@ -2355,7 +2394,7 @@ async def solo_game_timer(context, chat_id, match, player_type, player_name):
         try:
             await context.bot.send_message(
                 chat_id, 
-                f"⏳ <b>Hurry Up {player_name}!</b> 15 seconds left!", 
+                f"⏳ <b>Hurry Up {player_name}!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n⚠️ Only <b>15 seconds</b> left — play your ball!", 
                 parse_mode=ParseMode.HTML
             )
         except: pass
@@ -2560,17 +2599,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             except: pass
 
-    welcome_text = "🏏 <b>WELCOME TO CRICOVERSE</b> 🏏\n"
+    welcome_text = "🏏 <b>CRICOVERSE</b>\n"
     welcome_text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    welcome_text += "The ultimate Hand Cricket experience on Telegram.\n\n"
-    welcome_text += "🔥 <b>Features:</b>\n"
-    welcome_text += "• 🏟 Group Matches\n"
-    welcome_text += "• 📺 DRS System\n"
-    welcome_text += "• 📊 Career Stats\n"
-    welcome_text += "• 🎙 Live Commentary\n"
-    welcome_text += "• 🎪 Tournament/Auction Mode\n\n"
-    welcome_text += "👇 <b>How to Play:</b>\n"
-    welcome_text += "Add me to your group and type <code>/game</code> to start!"
+    welcome_text += "The ultimate Hand Cricket experience on Telegram!\n"
+    welcome_text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
+    welcome_text += "🏟️ Group Matches  ·  📺 DRS System\n"
+    welcome_text += "📊 Career Stats  ·  🎙️ Live Commentary\n"
+    welcome_text += "🎪 Tournaments  ·  🤖 AI Mode\n"
+    welcome_text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
+    welcome_text += "👇 Add me to your group and send <code>/game</code>!"
 
     
     if chat.type == "private":
@@ -2595,17 +2632,13 @@ def get_help_main_text():
     return (
         "🏏 <b>CRICOVERSE HELP CENTER</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
-        "Welcome to the <b>ultimate Hand Cricket bot!</b>\n\n"
-        "🎮 <b>Game Modes:</b>\n"
-        "👥 <b>Team Mode</b> — 2-team matches with captains\n"
-        "⚔️ <b>Solo Mode</b> — 1 vs All survival game\n\n"
-        "🎪 <b>Auction Mode</b> — IPL-style player auctions\n\n"
-        "📌 <b>Quick Commands:</b>\n"
-        "• /game — Start a match\n"
-        "• /mystats — Your career stats\n"
-        "• /scorecard — Match scorecard\n"
-        "• /commentary — Change commentary style\n\n"
-        "👇 <b>Choose a section for details:</b>"
+        "👥 Team Mode  ·  ⚔️ Solo Mode  ·  🎪 Auction Mode\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "⚡ <b>Quick Commands:</b>\n"
+        "<code>/game</code> Start  ·  <code>/mystats</code> Stats  ·  <code>/scorecard</code> Card\n"
+        "<code>/commentary</code> Style  ·  <code>/botstats</code> Bot Info\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "👇 <i>Choose a section below for full details:</i>"
     )
 
 
@@ -2614,17 +2647,20 @@ def get_help_team_text():
         "👥 <b>TEAM MODE COMMANDS</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "🛠 <b>Host Commands:</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━\n"
         "• <code>/game</code> — Setup new match\n"
         "• <code>/extend [secs]</code> — Add joining time\n"
         "• <code>/endmatch</code> — Force end game\n"
         "• <code>/timeout</code> — Strategic timeout\n\n"
         
         "🧢 <b>Captain Commands:</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━\n"
         "• <code>/batting [no]</code> — Select batsman\n"
         "• <code>/bowling [no]</code> — Select bowler\n"
         "• <code>/drs</code> — Review wicket (1 DRS per innings)\n\n"
         
         "📊 <b>Match Info:</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━\n"
         "• <code>/scorecard</code> — Full match scorecard\n"
         "• <code>/players</code> — View team squads\n"
         "• <code>/mystats</code> — Your career profile\n"
@@ -2632,6 +2668,7 @@ def get_help_team_text():
         "• <code>/commentary [style]</code> — Change commentary\n\n"
         
         "🎪 <b>AUCTION MODE:</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━\n"
         "• <code>/auction</code> — Setup auction\n"
         "• <code>/startauction</code> — Begin live auction\n"
         "• <code>/bid [amount]</code> — Place a bid\n"
@@ -2653,16 +2690,19 @@ def get_help_solo_text():
         "<i>1 vs All. Infinite Batting. Auto-Rotation.</i>\n\n"
         
         "🛠 <b>Host Commands:</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
         "• <code>/game</code> - Select 'Solo Mode' button\n"
         "• <code>/extendsolo 60</code> - Add joining time\n"
         "• <code>/endsolo</code> - End Game & Show Winner\n\n"
         
         "👤 <b>Player Commands:</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
         "• <code>/soloscore</code> - Live Leaderboard\n"
         "• <code>/soloplayers</code> - Player Status List\n"
         "• <code>/mystats</code> - Your Career Profile\n\n"
         
         "🎮 <b>Gameplay:</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
         "• <b>Batting:</b> Send 0-6 in Group Chat.\n"
         "• <b>Bowling:</b> Send 0-6 in Bot DM."
     )
@@ -2672,30 +2712,36 @@ def get_help_tutorial_text():
         "📚 <b>HOW TO PLAY CRICOVERSE</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "🔵 <b>Step 1 — Start a Match</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
         "• Add the bot to your group\n"
         "• Type <code>/game</code> and select mode\n"
         "• Players click <b>Join</b>\n"
         "• Host clicks <b>Start Match</b>\n\n"
         
         "🔵 <b>Step 2 — Team Setup</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
         "• Host selects Team X & Y captains\n"
         "• Host edits teams if needed\n"
         "• Select number of overs\n"
         "• Toss decides who bats first\n\n"
         
         "🔵 <b>Step 3 — Batting</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
         "• Captain selects batsman with <code>/batting [no]</code>\n"
         "• Batsman sends a number <b>0-6</b> in group chat\n\n"
         
         "🔵 <b>Step 4 — Bowling</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
         "• Captain selects bowler with <code>/bowling [no]</code>\n"
         "• Bowler sends number <b>0-6</b> via bot DM\n\n"
         
         "⚡ <b>Scoring Rules</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
         "• Same number = <b>OUT ❌</b>\n"
         "• Different number = <b>Batsman's number = Runs</b> 🏏\n\n"
         
         "🏆 <b>Special Rules</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
         "• Wide: Bowler repeats same number 3 times in a row\n"
         "• DRS: 1 review per innings for wicket decisions\n"
         "• <code>/timeout</code>: Strategic break available\n\n"
@@ -2775,47 +2821,35 @@ async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     try:
         # Step 1: Entry Log
-        print("\n--- DEBUG: game_command TRIGGERED ---")
         
         chat = update.effective_chat
         user = update.effective_user
         
-        print(f"DEBUG: User: {user.first_name} (ID: {user.id})")
-        print(f"DEBUG: Chat: {chat.title} (ID: {chat.id}, Type: {chat.type})")
 
         # Step 2: Ban Check
-        print("DEBUG: Checking group ban status...")
         if not await check_group_ban(update, context):
-            print("DEBUG: ❌ Group is BANNED. Stopping execution.")
             return
-        print("DEBUG: ✅ Group is NOT banned.")
         
         # Step 3: Private Chat Check
         if chat.type == "private":
-            print("DEBUG: ⚠️ Private chat detected. Sending warning.")
             await context.bot.send_message(chat.id, "⚠️ This command only works in groups!")
             return
         
         # Step 4: Active Match Check
-        print("DEBUG: Checking for active matches...")
         if chat.id in active_matches:
             match = active_matches[chat.id]
-            print(f"DEBUG: Match found in memory. Phase: {match.phase}")
             
             # Ghost Match Auto-Fix
             if match.phase == GamePhase.MATCH_ENDED:
-                print("DEBUG: 👻 Ghost match detected (Ended but not deleted). Deleting now...")
                 del active_matches[chat.id]
             else:
-                print("DEBUG: ⚠️ Valid match active. Sending warning.")
                 await context.bot.send_message(chat.id, "⚠️ Match already in progress! Use /endmatch to stop it.")
                 return
         else:
-            print("DEBUG: ✅ No active match found. Proceeding.")
-            
+            pass
+
         # Step 5: Register Group
         if chat.id not in registered_groups:
-            print("DEBUG: 🆕 New group detected. Registering in DB...")
             registered_groups[chat.id] = {
                 "group_id": chat.id, 
                 "group_name": chat.title, 
@@ -2823,35 +2857,34 @@ async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "commentary_style": "english"
             }
             save_data()
-            print("DEBUG: ✅ Group registered successfully.")
             
             # Notify Support Group (Non-blocking)
             try:
-                print("DEBUG: Sending alert to Support Group...")
                 msg = f"🆕 <b>Bot Added to New Group</b>\n🆔 <code>{chat.id}</code>"
                 await context.bot.send_message(chat_id=SUPPORT_GROUP_ID, text=msg, parse_mode=ParseMode.HTML)
             except Exception as e:
-                print(f"DEBUG: ⚠️ Support notification failed (Ignored): {e}")
+                pass
 
         # Step 6: Prepare UI
-        print("DEBUG: Preparing Buttons & Text...")
         keyboard = [
             [InlineKeyboardButton("👥 Team Mode", callback_data="mode_team"),
-            InlineKeyboardButton("⚔️ Solo Mode", callback_data="mode_solo")],
-            [InlineKeyboardButton("🏆 Tournament Mode", callback_data="mode_tournament")],
-            [InlineKeyboardButton("🤖 AI Mode (DM)", callback_data="mode_ai")]
+             InlineKeyboardButton("⚔️ Solo Mode", callback_data="mode_solo")],
+            [InlineKeyboardButton("🏆 Tournament Mode", callback_data="mode_tournament"),
+             InlineKeyboardButton("🤖 AI Mode (DM)", callback_data="mode_ai")],
+            [InlineKeyboardButton("🔮 Magic Ball Mode", callback_data="mode_magicball")]
         ]
         
-        msg = "🎮 <b>SELECT GAME MODE</b> 🎮\n"
-        msg += "━━━━━━━━━━━━━━━━━━━━━━\n"
-        msg += "Choose your battle style below:"
+        msg = "━━━━━━━━━━━━━━━━━━━━━\n"
+        msg += " 🏟️  C R I C O V E R S E              \n"
+        msg += "━━━━━━━━━━━━━━━━━━━━━\n"
+        msg += "🎮 <b>SELECT GAME MODE</b>\n"
+        msg += "━━━━━━━━━━━━━━━━━━━━━\n"
+        msg += "👇 <i>Tap your mode to begin!</i>"
         
         # Step 7: Send Message (Try Photo first, then Text)
-        print("DEBUG: Attempting to send UI to chat...")
         
         try:
             photo_url = MEDIA_ASSETS.get("mode_select", "https://t.me/cricoverse/7")
-            print(f"DEBUG: Trying send_photo with URL: {photo_url}")
             
             # Using context.bot.send_photo instead of reply_photo (Safest method)
             await context.bot.send_photo(
@@ -2861,11 +2894,8 @@ async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode=ParseMode.HTML
             )
-            print("DEBUG: ✅ SUCCESS! Photo menu sent.")
             
         except Exception as photo_error:
-            print(f"DEBUG: ❌ Photo send FAILED. Error: {photo_error}")
-            print("DEBUG: 🔄 Attempting fallback to TEXT ONLY mode...")
             
             try:
                 await context.bot.send_message(
@@ -2874,13 +2904,10 @@ async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=InlineKeyboardMarkup(keyboard),
                     parse_mode=ParseMode.HTML
                 )
-                print("DEBUG: ✅ SUCCESS! Text menu sent (Fallback).")
             except Exception as text_error:
-                print(f"DEBUG: ❌❌ CRITICAL: Text send ALSO failed. Error: {text_error}")
-                print("DEBUG: Check Bot Permissions in this group (Send Messages/Embed Links).")
+                pass
 
     except Exception as e:
-        print(f"DEBUG: 💀 UNEXPECTED CRASH in game_command: {e}")
         logger.error(f"Critical error in game_command: {e}", exc_info=True)
         try:
             await context.bot.send_message(chat_id=update.effective_chat.id, text="⚠️ Critical Error. Check logs.")
@@ -2961,8 +2988,8 @@ async def mode_selection_callback(update: Update, context: ContextTypes.DEFAULT_
             await context.bot.send_message(
                 chat_id=user.id,
                 text=(
-                    "🤖 <b>AI MODE - Play vs Computer</b>\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    "🤖 <b>AI MODE — Play vs Computer</b>\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                     "Welcome to single-player mode!\n"
                     "You'll play against an AI opponent.\n\n"
                     "Use /aistart to begin a match!"
@@ -2974,6 +3001,55 @@ async def mode_selection_callback(update: Update, context: ContextTypes.DEFAULT_
                 "⚠️ Please start the bot in DM first!\n"
                 f"Click here: @{(await context.bot.get_me()).username}"
             )
+
+    elif query.data == "mode_magicball":
+        # Magic Ball Mode - Team match with special power-up balls
+        match = Match(chat.id, chat.title)
+        match.game_mode = "MAGICBALL"
+        match.magic_ball_mode = True
+        match.phase = GamePhase.TEAM_JOINING
+        match.host_id = user.id
+        match.host_name = user.first_name
+        match.team_join_end_time = time.time() + 120
+
+        active_matches[chat.id] = match
+
+        if user.id not in player_stats:
+            init_player_stats(user.id)
+
+        keyboard = [
+            [InlineKeyboardButton("❄️ Join Team X", callback_data=f"join_team_x_{chat.id}"),
+             InlineKeyboardButton("🔥 Join Team Y", callback_data=f"join_team_y_{chat.id}")]
+        ]
+
+        msg = "━━━━━━━━━━━━━━━━━━━━━\n"
+        msg += "  🔮  M A G I C  B A L L                 \n"
+        msg += "━━━━━━━━━━━━━━━━━━━━━\n"
+        msg += "⚡ <b>POWERED-UP CRICKET!</b>\n"
+        msg += "━━━━━━━━━━━━━━━━━━━━━\n"
+        msg += "🔮 Random balls trigger <b>special effects</b>!\n"
+        msg += "🧊 Freeze · 🔥 Fire · 👻 Ghost · 🛡️ Shield\n"
+        msg += "💎 Double · 🔄 Reverse · 🎲 Wild & more!\n"
+        msg += "━━━━━━━━━━━━━━━━━━━━━\n"
+        msg += "⏱ <b>2 mins</b> to join · Choose your side!\n\n"
+        msg += "👇 <i>Pick a team below to enter the arena!</i>"
+
+        try:
+            await query.message.edit_caption(
+                caption=msg,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.HTML
+            )
+        except:
+            await query.message.reply_text(
+                msg,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.HTML
+            )
+
+        match.team_join_task = asyncio.create_task(
+            team_join_countdown(context, chat.id, match)
+        )
 
 async def auction_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle auction related callbacks"""
@@ -2996,10 +3072,12 @@ async def auction_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🏏 <b>AUCTION SETUP</b>\n"
             "━━━━━━━━━━━━━━━━━━━━━\n\n"
             "📋 <b>Next Steps:</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
             "1️⃣ Assign bidders: <code>/bidder [team]</code>\n"
             "2️⃣ Add players: <code>/aucplayer</code>\n"
             "3️⃣ Select auctioneer below\n"
-            "4️⃣ Start: <code>/startauction</code>\n\n"
+            "4️⃣ Start: <code>/startauction</code>\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
             "💰 Default Purse: 1000"
         )
         
@@ -3123,31 +3201,46 @@ def get_team_join_message(match: Match) -> str:
     
     total_p = len(match.team_x.players) + len(match.team_y.players)
     
-    msg = "🏆 <b>CRICOVERSE MATCH REGISTRATION</b> 🏆\n"
-    msg += "━━━━━━━━━━━━━━━━━━━━━━\n"
-    msg += f"⏳ <b>Time Remaining:</b> <code>{minutes:02d}:{seconds:02d}</code>\n"
-    msg += f"👥 <b>Total Players:</b> {total_p}\n\n"
+    # Mode label
+    mode_label = ""
+    if getattr(match, "magic_ball_mode", False) or getattr(match, "game_mode", "") == "MAGICBALL":
+        mode_label = "  🔮 <i>Magic Ball Mode!</i>"
+    
+    msg = "━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += " 🏟️  C R I C O V E R S E  \n"
+    msg += "━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += f"⏱ <code>{minutes:02d}:{seconds:02d}</code> left · 👥 <b>{total_p}</b> in{mode_label}\n"
+    msg += "━━━━━━━━━━━━━━━━━━━━━\n\n"
     
     # Team X List
-    msg += "🧊 <b>TEAM X</b>\n"
+    msg += "❄️ <b>TEAM X</b>"
+    if match.team_x.captain_id:
+        cap = match.team_x.get_player(match.team_x.captain_id)
+        if cap:
+            msg += f"  👑 <i>{cap.first_name}</i>"
+    msg += "\n"
     if match.team_x.players:
         for i, p in enumerate(match.team_x.players, 1):
-            msg += f"  ├ {i}. {p.first_name}\n"
+            crown = "👑" if p.user_id == match.team_x.captain_id else "·"
+            msg += f" {crown} <b>{i}.</b> {p.first_name}\n"
     else:
-        msg += "  └ <i>Waiting for players...</i>\n"
+        msg += " <i>⏳ Waiting for players...</i>\n"
     
+    msg += "\n🔥 <b>TEAM Y</b>"
+    if match.team_y.captain_id:
+        cap = match.team_y.get_player(match.team_y.captain_id)
+        if cap:
+            msg += f"  👑 <i>{cap.first_name}</i>"
     msg += "\n"
-    
-    # Team Y List
-    msg += "🔥 <b>TEAM Y</b>\n"
     if match.team_y.players:
         for i, p in enumerate(match.team_y.players, 1):
-            msg += f"  ├ {i}. {p.first_name}\n"
+            crown = "👑" if p.user_id == match.team_y.captain_id else "·"
+            msg += f" {crown} <b>{i}.</b> {p.first_name}\n"
     else:
-        msg += "  └ <i>Waiting for players...</i>\n"
-            
-    msg += "━━━━━━━━━━━━━━━━━━━━━━\n"
-    msg += "<i>Click buttons below to join your squad!</i>"
+        msg += " <i>⏳ Waiting for players...</i>\n"
+    
+    msg += "\n━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += "👇 <i>Tap below to join your squad — hurry up!</i>"
     
     return msg
 
@@ -3166,12 +3259,10 @@ async def team_join_countdown(context: ContextTypes.DEFAULT_TYPE, group_id: int,
             if remaining <= 30 and remaining > 20 and not warning_sent:
                 await context.bot.send_message(
                     group_id, 
-                    "⚠️ <b>Hurry Up! Only 30 seconds left to join!</b>", 
+                    "⏰ <b>LAST CALL!</b> 30 seconds left to join!\n━━━━━━━━━━━━━━━━━━━━━━\n👇 Tap below NOW — hurry up! 🏏", 
                     parse_mode=ParseMode.HTML
                 )
                 warning_sent = True
-
-            # Time Up
             if remaining <= 0:
                 await end_team_join_phase(context, group_id, match)
                 break
@@ -3209,11 +3300,14 @@ async def end_team_join_phase(context: ContextTypes.DEFAULT_TYPE, group_id: int,
     keyboard = [[InlineKeyboardButton("🙋‍♂️ I Want to be Host", callback_data="become_host")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    host_text = f"✅ <b>REGISTRATION CLOSED!</b>\n"
-    host_text += "━━━━━━━━━━━━━━━━━━━━━━\n"
-    host_text += f"Total Players: <b>{total_players}</b>\n\n"
-    host_text += "<b>Who wants to be the Host?</b>\n"
-    host_text += "<i>Host will select overs and finalize the teams.</i>"
+    host_text = f"✅ <b>REGISTRATION CLOSED</b>\n"
+    host_text += "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    host_text += f"👥 <b>{total_players} players</b> locked in and ready!\n\n"
+    host_text += "🎙️ <b>Who's taking the mic?</b>\n"
+    host_text += "<i>The Host controls overs, teams & match flow.\n"
+    host_text += "Step up if you're ready to run the show!</i>\n\n"
+    host_text += "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    host_text += "👇 <i>Tap below to become Host</i>"
     
     # Send with Host Image and Pin
     await refresh_game_message(context, group_id, match, host_text, reply_markup, media_key="host")
@@ -3337,8 +3431,10 @@ async def extend_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     match.last_activity = datetime.now() + timedelta(seconds=seconds)
     
     await update.message.reply_text(
-        f"⏰ Match time extended by {seconds} seconds!\n"
-        f"New deadline: {match.last_activity.strftime('%I:%M:%S %p')}"
+        f"⏰ <b>Match Extended!</b>\n\n"
+        f"⏱️ Added <b>{seconds} seconds</b> to the match.\n"
+        f"🕐 New deadline: <b>{match.last_activity.strftime('%I:%M:%S %p')}</b>",
+        parse_mode=ParseMode.HTML
     )
     
     # Refresh Game Board
@@ -3351,7 +3447,7 @@ async def extend_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # Use master function to keep it at bottom and pinned
-    await refresh_game_message(context, chat.id, match, text, reply_markup=reply_markup, media_key="joining")
+    await refresh_game_message(context, chat_id, match, text, reply_markup=reply_markup, media_key="joining")
 
 # Host selection callback
 async def host_selection_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3917,10 +4013,12 @@ async def start_toss(query, context: ContextTypes.DEFAULT_TYPE, match: Match):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    toss_text = "🪙 <b>TIME FOR THE TOSS</b>\n"
-    toss_text += "━━━━━━━━━━━━━━━━━━━━━━\n"
-    toss_text += f"📏 <b>Format:</b> {match.total_overs} Overs per side\n\n"
-    toss_text += f"👤 <b>{cap_x_name}</b>, it's your call!\n"
+    toss_text = f"🪙 <b>TOSS TIME!</b>\n"
+    toss_text += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+    toss_text += f"🏏 <b>Format:</b> {match.total_overs} Overs  |  🏟️ Hand Cricket\n"
+    toss_text += f"⏱ <b>Timer:</b> 30 seconds to decide\n"
+    toss_text += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+    toss_text += f"👑 <b>{cap_x_name}</b> — it's your call!\n"
     toss_text += "<i>Choose Heads or Tails below:</i>"
     
     # ✅ FIX: Always use refresh_game_message to switch images safely
@@ -3969,12 +4067,14 @@ async def toss_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    decision_text = "🪙 <b>TOSS RESULT</b>\n"
-    decision_text += "━━━━━━━━━━━━━━━━━━━━━━\n"
-    decision_text += f"The coin landed on: <b>{toss_result.upper()}</b>\n\n"
-    decision_text += f"🎉 <b>{match.toss_winner.name} won the toss!</b>\n"
-    decision_text += f"👤 <b>Captain {winner_captain.first_name}</b>, make your choice.\n"
-    decision_text += "<i>You have 30 seconds to decide.</i>"
+    decision_text = f"🪙 <b>TOSS RESULT</b>\n"
+    decision_text += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+    decision_text += f"🎉 <b>{match.toss_winner.name}</b> won the toss!\n"
+    decision_text += f"🟡 Coin landed: <b>{toss_result.upper()}</b>\n"
+    decision_text += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+    decision_text += f"👑 <b>Captain {winner_captain.first_name}</b> — Bat or Bowl?\n"
+    decision_text += f"⏱ <b>Timer:</b> 30 seconds to decide\n"
+    decision_text += "<i>Choose wisely!</i>"
     
     # ✅ FIX: Use refresh_game_message instead of edit_message_text
     await refresh_game_message(context, chat.id, match, decision_text, reply_markup, media_key="toss")
@@ -4053,13 +4153,13 @@ async def start_match(context: ContextTypes.DEFAULT_TYPE, group_id: int, match: 
 
     # Send toss summary
     decision_method = "chose to" if not auto_decision else "will"
-    toss_summary = "🏟 <b>MATCH STARTED</b>\n"
+    toss_summary = "🏟️ <b>MATCH STARTED!</b>\n"
     toss_summary += "━━━━━━━━━━━━━━━━━━━━━\n"
     toss_summary += f"🪙 <b>{match.toss_winner.name}</b> won the toss\n"
     toss_summary += f"🏏 <b>{match.batting_first.name}</b> {decision_method} bat first\n"
-    toss_summary += f"📏 <b>Format:</b> {match.total_overs} Overs per side\n"
+    toss_summary += f"📏 Format: <b>{match.total_overs} Overs</b> per side\n"
     toss_summary += "━━━━━━━━━━━━━━━━━━━━━\n"
-    toss_summary += "<i>Openers are walking to the crease...</i>"
+    toss_summary += "⚡ <i>Openers walking to the crease...</i>"
     
     await context.bot.send_message(chat_id=group_id, text=toss_summary, parse_mode=ParseMode.HTML)
     
@@ -4077,11 +4177,11 @@ async def start_match(context: ContextTypes.DEFAULT_TYPE, group_id: int, match: 
     
     captain_tag = get_user_tag(captain)
     
-    msg = f"🏏 <b>SELECT STRIKER</b>\n"
+    msg = f"🏏 <b>SELECT YOUR OPENER</b>\n"
     msg += f"━━━━━━━━━━━━━━━━━━━━━\n"
-    msg += f"👑 <b>{captain_tag}</b>, please select the <b>STRIKER</b> first:\n\n"
-    msg += f"👉 <b>Command:</b> <code>/batting [serial_number]</code>\n"
-    msg += f"📋 <b>Available Players:</b> {len(match.current_batting_team.players)}\n"
+    msg += f"👑 {captain_tag} — who's opening the batting?\n"
+    msg += f"⌨️ <code>/batting [number]</code>  <i>e.g. /batting 1</i>\n"
+    msg += f"👥 <b>{len(match.current_batting_team.players)} players available</b>"
     
     await context.bot.send_message(group_id, msg, parse_mode=ParseMode.HTML)
     
@@ -4099,10 +4199,12 @@ async def request_batsman_selection(context: ContextTypes.DEFAULT_TYPE, chat_id:
         return
 
     captain_tag = get_user_tag(captain)  # Assuming get_user_tag is defined
-    msg = f"🏏〔 <b>NEW BATSMAN NEEDED!</b> 〕🏏\n\n"
-    msg += f"👉 <b>{captain_tag}</b>, send in your next batter!\n"
-    msg += "<code>/batting [serial]  (e.g., /batting 3)</code>\n"
-    msg += f"👥 <b>{len(match.current_batting_team.players) - len(match.current_batting_team.out_players_indices) - 2} players remaining</b>"
+    msg = f"🏏 <b>NEW BATSMAN NEEDED!</b>\n"
+    msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += f"👑 {captain_tag} — send in your next batter!\n"
+    msg += f"⌨️ <code>/batting [number]</code>\n"
+    msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += f"⏱ <b>Batting Time:</b> 30 seconds"
     
     await context.bot.send_message(chat_id, msg, parse_mode=ParseMode.HTML)
     
@@ -4360,167 +4462,116 @@ async def players_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🏏 Squad info not available in solo mode")
         return
     
-    text = "╔══════════════════╗\n"
-    text += "      🏏 <b>PLAYING PLAYER</b>\n"
-    text += "╚══════════════════╝\n\n"
+    text = "🏏 <b>PLAYING SQUADS</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += "<i>🏏Runs(Balls) SR  ·  ⚾W/RC Econ</i>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━\n"
     
     # Determine toss winner
     toss_winner_team = None
     if match.toss_winner:
         toss_winner_team = match.toss_winner
     
-    # Team X
-    text += "━━━━━━━━━━━━━━━━━━━\n"
-    team_x_header = f"🔵 <b>{match.team_x.name}</b>"
-    if toss_winner_team == match.team_x:
-        team_x_header += " 🪙"
-    text += team_x_header + "\n"
-    text += "━━━━━━━━━━━━━━━━━━━\n"
-    
+    def _prow(player, team):
+        """Build one rich player row with live stats"""
+        tag  = f'<a href="tg://user?id={player.user_id}">{html.escape(player.first_name)}</a>'
+        icons = ""
+        if player.user_id == team.captain_id:
+            icons += "👑"
+        pst = team.player_stats.get(player.user_id, {})
+        if player.is_out or pst.get("dismissal","not out") != "not out":
+            icons += "❌"
+        elif match.current_batting_team == team:
+            if team.current_batsman_idx is not None and team.players[team.current_batsman_idx].user_id == player.user_id:
+                icons += "🏏"
+            elif team.current_non_striker_idx is not None and team.players[team.current_non_striker_idx].user_id == player.user_id:
+                icons += "🔄"
+        elif match.current_bowling_team == team:
+            if team.current_bowler_idx is not None and team.players[team.current_bowler_idx].user_id == player.user_id:
+                icons += "⚡"
+        row = f"  {tag}{' '+icons if icons else ''}\n"
+        if player.balls_faced > 0 or player.is_out:
+            sr   = round((player.runs / max(player.balls_faced,1))*100, 1)
+            bdry = f" 🔥{player.boundaries}" if player.boundaries else ""
+            six  = f" 🚀{player.sixes}"      if player.sixes      else ""
+            row += f"    🏏 {player.runs}({player.balls_faced}) SR:{sr}{bdry}{six}\n"
+        if player.balls_bowled > 0:
+            ov   = format_overs(player.balls_bowled)
+            econ = round(player.runs_conceded / max(player.balls_bowled/6,0.1), 1)
+            row += f"    ⚾ {player.wickets}W/{player.runs_conceded}R ({ov}ov) Eco:{econ}\n"
+        return row
+
+    # Team X block
+    text += f"🔵 <b>{html.escape(match.team_x.name)}</b>"
+    text += (" 🪙" if toss_winner_team == match.team_x else "") + "\n"
     for i, player in enumerate(match.team_x.players, 1):
-        # Create mention tag
-        mention = f'<a href="tg://user?id={player.user_id}">{player.first_name}</a>'
-        
-        # Captain mark
-        if player.user_id == match.team_x.captain_id:
-            mention += " 👑"
-        
-        # Check player status
-        stats = match.team_x.player_stats.get(player.user_id, {})
-        dismissal = stats.get('dismissal', 'not out')
-        
-        # Add status emoji
-        if dismissal != 'not out':
-            mention += " ❌"  # Out emoji
-        elif match.current_batting_team == match.team_x:
-            # Check if currently batting
-            if match.current_batting_team.current_batsman_idx is not None:
-                current_batsman = match.current_batting_team.players[match.current_batting_team.current_batsman_idx]
-                if current_batsman.user_id == player.user_id:
-                    mention += " 🏏"  # Striker
-            if match.current_batting_team.current_non_striker_idx is not None:
-                non_striker = match.current_batting_team.players[match.current_batting_team.current_non_striker_idx]
-                if non_striker.user_id == player.user_id:
-                    mention += " 🔄"  # Non-striker
-        elif match.current_bowling_team == match.team_x:
-            # Check if currently bowling
-            if match.current_bowling_team.current_bowler_idx is not None:
-                current_bowler = match.current_bowling_team.players[match.current_bowling_team.current_bowler_idx]
-                if current_bowler.user_id == player.user_id:
-                    mention += " ⚡"  # Bowling
-        
-        text += f"  {i}. {mention}\n"
-    
-    # Team Y
-    text += "\n━━━━━━━━━━━━━━━━━━━\n"
-    team_y_header = f"🔴 <b>{match.team_y.name}</b>"
-    if toss_winner_team == match.team_y:
-        team_y_header += " 🪙"
-    text += team_y_header + "\n"
-    text += "━━━━━━━━━━━━━━━━━━━\n"
-    
+        text += f"  {i}." + _prow(player, match.team_x)[3:]
+
+    text += "\n━━━━━━━━━━━━━━━━━━━━━━\n"
+
+    # Team Y block
+    text += f"🔴 <b>{html.escape(match.team_y.name)}</b>"
+    text += (" 🪙" if toss_winner_team == match.team_y else "") + "\n"
     for i, player in enumerate(match.team_y.players, 1):
-        # Create mention tag
-        mention = f'<a href="tg://user?id={player.user_id}">{player.first_name}</a>'
-        
-        # Captain mark
-        if player.user_id == match.team_y.captain_id:
-            mention += " 👑"
-        
-        # Check player status
-        stats = match.team_y.player_stats.get(player.user_id, {})
-        dismissal = stats.get('dismissal', 'not out')
-        
-        # Add status emoji
-        if dismissal != 'not out':
-            mention += " ❌"  # Out emoji
-        elif match.current_batting_team == match.team_y:
-            # Check if currently batting
-            if match.current_batting_team.current_batsman_idx is not None:
-                current_batsman = match.current_batting_team.players[match.current_batting_team.current_batsman_idx]
-                if current_batsman.user_id == player.user_id:
-                    mention += " 🏏"  # Striker
-            if match.current_batting_team.current_non_striker_idx is not None:
-                non_striker = match.current_batting_team.players[match.current_batting_team.current_non_striker_idx]
-                if non_striker.user_id == player.user_id:
-                    mention += " 🔄"  # Non-striker
-        elif match.current_bowling_team == match.team_y:
-            # Check if currently bowling
-            if match.current_bowling_team.current_bowler_idx is not None:
-                current_bowler = match.current_bowling_team.players[match.current_bowling_team.current_bowler_idx]
-                if current_bowler.user_id == player.user_id:
-                    mention += " ⚡"  # Bowling
-        
-        text += f"  {i}. {mention}\n"
-    
-    
+        text += f"  {i}." + _prow(player, match.team_y)[3:]
+
+    text += "\n━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += "👑 Cap  🏏 Bat  🔄 NS  ⚡ Bowl  ❌ Out"
+
     try:
-        # Send with photo
+        await update.message.reply_photo(
+            photo=PLAYERS_PHOTO, caption=text, parse_mode=ParseMode.HTML
+        )
+    except Exception:
         try:
-            await update.message.reply_photo(
-                photo=PLAYERS_PHOTO,
-                caption=text,
-                parse_mode=ParseMode.HTML
-            )
-        except Exception as photo_error:
-            logger.error(f"Error sending players photo: {photo_error}")
-            # Fallback to text
             await update.message.reply_text(text, parse_mode=ParseMode.HTML)
-    except Exception as e:
-        # Fallback without tags if it fails
-        plain_text = "🏏 PLAYING XI\n\n"
-        plain_text += f"🔵 {match.team_x.name}"
-        if toss_winner_team == match.team_x:
-            plain_text += " 🪙"
-        plain_text += "\n"
-        
-        for i, player in enumerate(match.team_x.players, 1):
-            name = player.first_name
-            if player.user_id == match.team_x.captain_id:
-                name += " 👑"
-            stats = match.team_x.player_stats.get(player.user_id, {})
-            if stats.get('dismissal', 'not out') != 'not out':
-                name += " ❌"
-            plain_text += f"{i}. {name}\n"
-        
-        plain_text += f"\n🔴 {match.team_y.name}"
-        if toss_winner_team == match.team_y:
-            plain_text += " 🪙"
-        plain_text += "\n"
-        
-        for i, player in enumerate(match.team_y.players, 1):
-            name = player.first_name
-            if player.user_id == match.team_y.captain_id:
-                name += " 👑"
-            stats = match.team_y.player_stats.get(player.user_id, {})
-            if stats.get('dismissal', 'not out') != 'not out':
-                name += " ❌"
-            plain_text += f"{i}. {name}\n"
-        
-        plain_text += "\n👑 Captain | 🪙 Toss Winner\n"
-        plain_text += "🏏 Batting | 🔄 Non-striker | ⚡ Bowling | ❌ Out"
-        await update.message.reply_text(plain_text)
+        except Exception:
+            await update.message.reply_text("🏏 Players list unavailable right now.")
 
 async def batsman_selection_timeout(context: ContextTypes.DEFAULT_TYPE, group_id: int, match: Match):
     """Handle batsman selection timeout"""
     try:
-        await asyncio.sleep(120)  # 2 minutes
+        await asyncio.sleep(120)  # 2 minutes - send reminder
+        
+        if not match.waiting_for_batsman:
+            return
+        
+        # 2-minute reminder
+        reminder_msg = (
+            f"⏰ <b>BATSMAN SELECTION REMINDER!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"⚠️ {match.current_batting_team.name} — pick your next batter!\n"
+            f"⌨️ <code>/batting [number]</code>  ·  ⏳ <b>2 min</b> left!"
+        )
+        await context.bot.send_message(
+            chat_id=group_id,
+            text=reminder_msg,
+            parse_mode=ParseMode.HTML
+        )
+        
+        await asyncio.sleep(120)  # Another 2 minutes (total 4 min)
         
         if not match.waiting_for_batsman:
             return
         
         # Timeout occurred - penalty
-        match.current_batting_team.score -= 6
-        match.current_batting_team.penalty_runs += 6
+        penalty = 6
+        match.current_batting_team.score -= penalty
+        match.current_batting_team.score = max(0, match.current_batting_team.score)
+        match.current_batting_team.penalty_runs += penalty
         
-        penalty_msg = "Batsman Selection Timeout\n\n"
-        penalty_msg += f"{match.current_batting_team.name} penalized 6 runs for delay.\n"
-        penalty_msg += f"Current Score: {match.current_batting_team.score}/{match.current_batting_team.wickets}\n\n"
-        penalty_msg += "Please select a batsman immediately."
+        penalty_msg = (
+            f"🚨 <b>SELECTION TIMEOUT — PENALTY!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"💸 <b>{match.current_batting_team.name}</b> penalized <b>-{penalty} runs</b> for delay!\n"
+            f"📊 Score: <b>{match.current_batting_team.score}/{match.current_batting_team.wickets}</b>\n"
+            f"⌨️ Select NOW: <code>/batting [number]</code>"
+        )
         
         await context.bot.send_message(
             chat_id=group_id,
-            text=penalty_msg
+            text=penalty_msg,
+            parse_mode=ParseMode.HTML
         )
         
         # Reset timer
@@ -4577,11 +4628,13 @@ async def request_bowler_selection(context: ContextTypes.DEFAULT_TYPE, chat_id: 
         logger.info(f"  Bowler #{i+1}: {p.first_name} (ID: {p.user_id})")
     
     # Build message
-    msg = f"🎳〔 <b>SELECT YOUR BOWLER</b> 〕🎳\n\n"
-    msg += f"👉 <b>{captain_tag}</b>, time to pick your bowler!\n"
-    msg += f"⌨️ <code>/bowling [serial number]</code>\n\n"
-    msg += f"👥 <b>{len(available)} bowlers available</b>\n"
-    msg += f"<i>(e.g. /bowling 1)</i>"
+    msg = f"⚾ <b>SELECT YOUR BOWLER</b>\n"
+    msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += f"👑 {captain_tag} — pick your bowler!\n"
+    msg += f"⌨️ <code>/bowling [number]</code>\n"
+    msg += f"🎳 <b>{len(available)} bowler(s)</b> available\n"
+    msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += f"⏱ <b>Bowling Time:</b> 30 seconds"
     
     # Send message to group
     try:
@@ -4609,7 +4662,27 @@ async def request_bowler_selection(context: ContextTypes.DEFAULT_TYPE, chat_id: 
 async def bowler_selection_timeout(context: ContextTypes.DEFAULT_TYPE, group_id: int, match: Match):
     """Handle bowler selection timeout"""
     try:
-        await asyncio.sleep(60)  # 1 minute
+        await asyncio.sleep(120)  # 2 minutes - send reminder
+        
+        if not match.waiting_for_bowler:
+            return
+        
+        # 2-minute reminder
+        captain = match.get_captain(match.current_bowling_team)
+        captain_tag = get_user_tag(captain) if captain else match.current_bowling_team.name
+        reminder_msg = (
+            f"⏰ <b>BOWLER SELECTION REMINDER!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"⚾ {captain_tag} — pick your bowler now!\n"
+            f"⌨️ <code>/bowling [number]</code>  ·  ⏳ <b>2 min</b> left!"
+        )
+        await context.bot.send_message(
+            chat_id=group_id,
+            text=reminder_msg,
+            parse_mode=ParseMode.HTML
+        )
+        
+        await asyncio.sleep(120)  # Another 2 minutes (total 4 min)
         
         if not match.waiting_for_bowler:
             return
@@ -4625,11 +4698,13 @@ async def bowler_selection_timeout(context: ContextTypes.DEFAULT_TYPE, group_id:
                 # Ban from bowling
                 bowler.is_bowling_banned = True
                 
-                penalty_msg = "Bowler Selection Timeout\n\n"
-                penalty_msg += f"{bowler.first_name} has timed out 3 times.\n"
-                penalty_msg += f"{bowler.first_name} is now BANNED from bowling for the rest of the match.\n\n"
-                penalty_msg += "No Ball called. Free Hit on next ball.\n\n"
-                penalty_msg += "Please select another bowler immediately."
+                penalty_msg = (
+                    f"🚨 <b>BOWLER BANNED — TIMEOUT!</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"⛔ <b>{bowler.first_name}</b> timed out 3× — BANNED from bowling!\n"
+                    f"📌 NO BALL  ·  ➕ +1 Run  ·  ⚡ FREE HIT next!\n"
+                    f"⌨️ Select another: <code>/bowling [number]</code>"
+                )
                 
                 # Add no ball
                 match.current_batting_team.score += 1
@@ -4638,13 +4713,17 @@ async def bowler_selection_timeout(context: ContextTypes.DEFAULT_TYPE, group_id:
                 
                 await context.bot.send_message(
                     chat_id=group_id,
-                    text=penalty_msg
+                    text=penalty_msg,
+                    parse_mode=ParseMode.HTML
                 )
             else:
-                penalty_msg = "Bowler Selection Timeout\n\n"
-                penalty_msg += f"{bowler.first_name} timed out ({timeout_count}/3).\n"
-                penalty_msg += "No Ball called. Free Hit on next ball.\n\n"
-                penalty_msg += "Please select a bowler immediately."
+                penalty_msg = (
+                    f"⏱️ <b>BOWLER TIMEOUT!</b>  <code>{timeout_count}/3</code>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"⚠️ <b>{bowler.first_name}</b> didn't bowl in time!\n"
+                    f"📌 NO BALL  ·  ➕ +1 Run  ·  ⚡ FREE HIT!\n"
+                    f"⌨️ <code>/bowling [number]</code> — select bowler!"
+                )
                 
                 # Add no ball
                 match.current_batting_team.score += 1
@@ -4653,18 +4732,23 @@ async def bowler_selection_timeout(context: ContextTypes.DEFAULT_TYPE, group_id:
                 
                 await context.bot.send_message(
                     chat_id=group_id,
-                    text=penalty_msg
+                    text=penalty_msg,
+                    parse_mode=ParseMode.HTML
                 )
         else:
             # First ball, no specific bowler to penalize
-            penalty_msg = "Bowler Selection Timeout\n\n"
-            penalty_msg += f"{match.current_bowling_team.name} delayed bowler selection.\n"
-            penalty_msg += "6 runs penalty after this over.\n\n"
-            penalty_msg += "Please select a bowler immediately."
+            penalty_msg = (
+                f"⏱️ <b>BOWLER SELECTION TIMEOUT!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"⚠️ <b>{match.current_bowling_team.name}</b> delayed bowler selection!\n"
+                f"💸 -6 Run Penalty applied.\n"
+                f"⌨️ <code>/bowling [number]</code> — select NOW!"
+            )
             
             await context.bot.send_message(
                 chat_id=group_id,
-                text=penalty_msg
+                text=penalty_msg,
+                parse_mode=ParseMode.HTML
             )
         
         # Reset timer
@@ -4837,20 +4921,22 @@ async def execute_ball(context: ContextTypes.DEFAULT_TYPE, group_id: int, match:
         equation = f"\n🎯 <b>Target:</b> Need <b>{runs_needed}</b> off <b>{balls_left}</b> balls (RRR: {rrr})"
 
     # --- 🏟️ GROUP DISPLAY ---
-    text = f"🔴 <b>LIVE</b> ● <b>HAND CRICKET</b>\n"
-    text += "╔══════════════════════╗\n"
-    text += f"║  🏏 <b>{striker_tag}</b>  vs  ⚾ <b>{bowler_tag}</b>\n"
-    text += "╚══════════════════════╝\n"
-    text += f"📊 <b>Score:</b> {bat_team.score}/{bat_team.wickets}  ⏱ <b>Overs:</b> {format_overs(bowl_team.balls)}\n"
+    overs_str = format_overs(bowl_team.balls)
+    crr_str = f"{crr:.2f}"
+    
+    text = f"🔴 <b>LIVE</b>  ●  OVER <b>{overs_str}</b>  ●  <b>HAND CRICKET</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += f"🏏 {striker_tag}  ⚡ <b>vs</b> ⚡  ⚾ {bowler_tag}\n"
+    text += f"📊 <b>{bat_team.score}/{bat_team.wickets}</b>  ┊  ⏱ {format_overs(bowl_team.balls)} ov  ┊  RR {crr_str}\n"
     
     if equation:
         text += f"{equation}\n"
-    text += "──────────────────────\n"
     
     if match.is_free_hit:
-        text += "🚨⚡ <b>FREE HIT!</b> Batsman cannot be dismissed! ⚡🚨\n\n"
+        text += "🚨 ⚡ <b>FREE HIT!</b> — Batsman CANNOT be dismissed! ⚡ 🚨\n"
         
-    text += f"🎳 <b>{bowler.first_name}</b> is steaming in... 🏃‍♂️💨"
+    text += "━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += f"⚾ <b>{bowler.first_name}</b> runs in to bowl... 🏃‍♂️💨"
 
     # Button
     keyboard = [[InlineKeyboardButton("📩 Tap to Bowl", url=f"https://t.me/{context.bot.username}")]]
@@ -4873,19 +4959,19 @@ async def execute_ball(context: ContextTypes.DEFAULT_TYPE, group_id: int, match:
         await context.bot.send_message(group_id, text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     
     # --- 📩 DM TO BOWLER ---
-    dm_text = f"🎳 <b>YOUR TURN TO BOWL!</b>\n"
-    dm_text += "┌─────────────────────┐\n"
-    dm_text += f"│  🏏 Facing: <b>{striker.first_name}</b>\n"
-    dm_text += f"│  📊 Score: <b>{bat_team.score}/{bat_team.wickets}</b>\n"
+    dm_text = f"⚾ <b>YOUR TURN TO BOWL!</b>\n"
+    dm_text += f"━━━━━━━━━━━━━━━━━━━━━\n"
+    dm_text += f"🏏 Batsman: <b>{striker.first_name}</b>\n"
+    dm_text += f"📊 Score: <b>{bat_team.score}/{bat_team.wickets}</b>\n"
     
     if match.innings == 2:
         runs_needed = match.target - bat_team.score
-        balls_left = (match.total_overs * 6) - bowl_team.balls  # ✅ USE BOWLING TEAM'S BALLS
-        dm_text += f"│  🎯 Defend: <b>{runs_needed} runs / {balls_left} balls</b>\n"
+        balls_left = (match.total_overs * 6) - bowl_team.balls
+        dm_text += f"🎯 Defend: <b>{runs_needed} runs</b> in <b>{balls_left} balls</b>\n"
     
-    dm_text += "└─────────────────────┘\n"
-    dm_text += "👇 <b>Send your number (0–6) NOW!</b>\n"
-    dm_text += "⏱ <i>45 seconds remaining...</i>"
+    dm_text += f"━━━━━━━━━━━━━━━━━━━━━\n"
+    dm_text += "📩 <b>Send a number (0–6) to bowl!</b>\n"
+    dm_text += "⏱ <i>45 seconds remaining</i>"
     
     try:
         await context.bot.send_message(bowler.user_id, dm_text, parse_mode=ParseMode.HTML)
@@ -4933,7 +5019,7 @@ async def wait_for_bowler_number(context: ContextTypes.DEFAULT_TYPE, group_id: i
             try:
                 await context.bot.send_message(
                     chat_id=bowler.user_id,
-                    text="⏳ <b>Tick tock!</b> 30 seconds left!\n🎳 Send your number (0–6) to bowl!",
+                    text="⏰ <b>30 seconds left!</b>\n⚾ Send your number (0–6) to bowl!",
                     parse_mode=ParseMode.HTML
                 )
                 match.current_ball_data["bowler_reminded"] = True
@@ -4948,7 +5034,7 @@ async def wait_for_bowler_number(context: ContextTypes.DEFAULT_TYPE, group_id: i
             try:
                 await context.bot.send_message(
                     chat_id=bowler.user_id,
-                    text="🚨 <b>URGENT!</b> Only 15 seconds left!\n⚡ Bowl NOW or face a NO BALL penalty!",
+                    text="🚨 <b>15 SECONDS!</b> Bowl NOW or it's a NO BALL!",
                     parse_mode=ParseMode.HTML
                 )
             except Exception as e:
@@ -4962,7 +5048,7 @@ async def wait_for_bowler_number(context: ContextTypes.DEFAULT_TYPE, group_id: i
             try:
                 await context.bot.send_message(
                     chat_id=bowler.user_id,
-                    text="🔴 <b>FINAL WARNING!</b> 5 seconds!\n😤 Send NOW or it's a NO BALL!",
+                    text="🔴 <b>5 SECONDS!</b> BOWL NOW!",
                     parse_mode=ParseMode.HTML
                 )
             except Exception as e:
@@ -4998,23 +5084,23 @@ async def handle_bowler_timeout(context: ContextTypes.DEFAULT_TYPE, group_id: in
         # Ban from bowling
         bowler.is_bowling_banned = True
         
-        penalty_text = f"⚠️ <b>OVER {format_overs(match.current_bowling_team.balls)}</b>\n\n"
-        penalty_text += "╔══════════════════════╗\n"
-        penalty_text += f"║  ⏱️ BOWLER TIMEOUT  ║\n"
-        penalty_text += "╚══════════════════════╝\n\n"
-        penalty_text += f"🚫 <b>{bowler.first_name}</b> has timed out <b>3 times!</b>\n"
-        penalty_text += f"🔴 <b>{bowler.first_name} is now BANNED from bowling!</b>\n\n"
-        penalty_text += f"📌 <b>NO BALL</b> awarded — +1 run\n"
-        penalty_text += f"⚡ <b>FREE HIT</b> on the next delivery!\n\n"
-        penalty_text += f"💬 <i>{commentary}</i>\n\n"
-        penalty_text += f"📊 <b>Score:</b> {match.current_batting_team.score}/{match.current_batting_team.wickets}"
+        penalty_text = f"🚨 <b>BOWLER TIMEOUT — BANNED!</b>\n"
+        penalty_text += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        penalty_text += f"⛔ <b>{bowler.first_name}</b> timed out 3 times — BANNED from bowling!\n"
+        penalty_text += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        penalty_text += f"📌 NO BALL  ·  ➕ +1 Run  ·  ⚡ FREE HIT next ball!\n"
+        penalty_text += f"💬 <i>{commentary}</i>\n"
+        penalty_text += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        penalty_text += f"📊 Score: <b>{match.current_batting_team.score}/{match.current_batting_team.wickets}</b>"
     else:
-        penalty_text = f"⚠️ <b>OVER {format_overs(match.current_bowling_team.balls)}</b>\n\n"
-        penalty_text += f"⏱️ <b>BOWLER TIMEOUT!</b> — {bowler.first_name} <code>({timeout_count}/3)</code>\n\n"
-        penalty_text += f"📌 <b>NO BALL</b> — +1 run to batting team\n"
-        penalty_text += f"⚡ <b>FREE HIT</b> next ball!\n\n"
-        penalty_text += f"💬 <i>{commentary}</i>\n\n"
-        penalty_text += f"📊 <b>Score:</b> {match.current_batting_team.score}/{match.current_batting_team.wickets}"
+        penalty_text = f"⏱️ <b>BOWLER TIMEOUT!</b>  <code>{timeout_count}/3</code>\n"
+        penalty_text += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        penalty_text += f"⚠️ <b>{bowler.first_name}</b> didn't bowl in time!\n"
+        penalty_text += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        penalty_text += f"📌 NO BALL  ·  ➕ +1 Run  ·  ⚡ FREE HIT!\n"
+        penalty_text += f"💬 <i>{commentary}</i>\n"
+        penalty_text += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        penalty_text += f"📊 Score: <b>{match.current_batting_team.score}/{match.current_batting_team.wickets}</b>"
     
     try:
         if gif_url:
@@ -5472,7 +5558,7 @@ async def wait_for_batsman_number(context: ContextTypes.DEFAULT_TYPE, group_id: 
             try:
                 await context.bot.send_message(
                     chat_id=batsman.user_id,
-                    text="⏳ <b>Tick tock!</b> 30 seconds left!\n🏏 Send your number (0–6) to play!",
+                    text="⏰ <b>30 seconds left!</b>\n🏏 Send your number (0–6) to bat!",
                     parse_mode=ParseMode.HTML
                 )
             except Exception as e:
@@ -5486,7 +5572,7 @@ async def wait_for_batsman_number(context: ContextTypes.DEFAULT_TYPE, group_id: 
             try:
                 await context.bot.send_message(
                     chat_id=batsman.user_id,
-                    text="🚨 <b>URGENT!</b> Only 15 seconds!\n⚡ Play NOW or face a 6-run penalty!",
+                    text="🚨 <b>15 SECONDS!</b> Bat NOW or -6 run penalty!",
                     parse_mode=ParseMode.HTML
                 )
             except Exception as e:
@@ -5500,7 +5586,7 @@ async def wait_for_batsman_number(context: ContextTypes.DEFAULT_TYPE, group_id: 
             try:
                 await context.bot.send_message(
                     chat_id=batsman.user_id,
-                    text="🔴 <b>FINAL WARNING!</b> 5 seconds!\n😤 Send NOW or lose 6 runs!",
+                    text="🔴 <b>5 SECONDS!</b> HIT NOW!",
                     parse_mode=ParseMode.HTML
                 )
             except Exception as e:
@@ -5525,6 +5611,7 @@ async def handle_batsman_timeout(context: ContextTypes.DEFAULT_TYPE, group_id: i
     
     # Penalty: -6 runs
     match.current_batting_team.score -= 6
+    match.current_batting_team.score = max(0, match.current_batting_team.score)
     match.current_batting_team.penalty_runs += 6
     
     if timeout_count >= 3:
@@ -5539,15 +5626,11 @@ async def handle_batsman_timeout(context: ContextTypes.DEFAULT_TYPE, group_id: i
         
         gif_url = get_random_gif(MatchEvent.WICKET)
         
-        penalty_text = f"⚠️ <b>OVER {format_overs(match.current_bowling_team.balls)}</b>\n\n"
-        penalty_text += "╔══════════════════════╗\n"
-        penalty_text += f"║  ⏱️ BATSMAN TIMEOUT  ║\n"
-        penalty_text += "╚══════════════════════╝\n\n"
-        penalty_text += f"😤 <b>{batsman.first_name}</b> has timed out <b>3 times!</b>\n"
-        penalty_text += f"🏏 <b>OUT — Hit Wicket (Timeout)!</b>\n\n"
-        penalty_text += f"📊 {batsman.first_name}: {batsman.runs} ({batsman.balls_faced})\n\n"
-        penalty_text += f"💸 6 runs penalty deducted from score!\n\n"
-        penalty_text += f"📊 <b>Score:</b> {match.current_batting_team.score}/{match.current_batting_team.wickets}"
+        penalty_text = f"🚨 <b>BATSMAN TIMEOUT — OUT!</b>\n"
+        penalty_text += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        penalty_text += f"⛔ <b>{batsman.first_name}</b> timed out 3 times — Hit Wicket!\n"
+        penalty_text += f"🏃 Score: {batsman.runs}({batsman.balls_faced})  ·  💸 -6 Run Penalty\n"
+        penalty_text += f"📊 Score: <b>{match.current_batting_team.score}/{match.current_batting_team.wickets}</b>"
         
         try:
             if gif_url:
@@ -5640,14 +5723,13 @@ async def process_ball_result(context: ContextTypes.DEFAULT_TYPE, group_id: int,
             commentary = get_commentary("wide", group_id=group_id)
             
             msg = (
-                f"🏏 <b>OVER {format_overs(bowl_team.balls)}</b>\n\n"
-                f"〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️\n"
-                f"🌊 <b>WIIIDE BALL!</b> 🌊\n"
-                f"Bowler bowled the same number 3 times in a row!\n"
-                f"〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️\n"
-                f"💬 <i>{commentary}</i>\n\n"
-                f"📊 <b>Score:</b> {bat_team.score}/{bat_team.wickets}\n"
-                f"➕ <b>+1 Extra run awarded!</b>"
+                f"〰️ <b>WIDE BALL!</b> 〰️\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🔁 <b>{bowler.first_name if 'bowler' in dir() else 'Bowler'}</b> bowled the same number 3 times in a row!\n"
+                f"➕ <b>+1 Extra</b> awarded to {bat_team.name}\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"💬 <i>{commentary}</i>\n"
+                f"📊 Score: <b>{bat_team.score}/{bat_team.wickets}</b>"
             )
             
             gif_url = get_random_gif(MatchEvent.WIDE)
@@ -5695,14 +5777,12 @@ async def process_ball_result(context: ContextTypes.DEFAULT_TYPE, group_id: int,
             
             gif_url = get_random_gif(MatchEvent.FREE_HIT)
             msg = (
-                f"⚡🛡️ <b>FREE HIT — NOT OUT!</b> 🛡️⚡\n"
-                f"Numbers matched ({batsman_num}) but it's a FREE HIT!\n"
-                f"╔══════════════════════╗\n"
-                f"║  🏏 BATSMAN SAVED!  ║\n"
-                f"╚══════════════════════╝\n"
-                f"🏃 <b>Half Runs Awarded:</b> +{half_runs}\n"
+                f"⚡ <b>FREE HIT — SAFE!</b> ⚡\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🛡️ Numbers matched ({batsman_num}) but <b>FREE HIT</b> saves it!\n"
+                f"🏃 <b>+{half_runs} runs</b> awarded\n"
                 f"💬 <i>{commentary}</i>\n"
-                f"✅ <b>NOT OUT — Play continues!</b>"
+                f"📊 Score: <b>{bat_team.score}/{bat_team.wickets}</b>  ✅ <b>NOT OUT</b>"
             )
             
             try:
@@ -5735,19 +5815,19 @@ async def process_ball_result(context: ContextTypes.DEFAULT_TYPE, group_id: int,
             striker_tag = get_user_tag(striker)
             commentary = get_commentary("wicket", group_id=group_id)
             
-            wicket_msg = f"❌ <b>OUT!</b> ❌\n"
-            wicket_msg += "─────────────────────\n"
-            wicket_msg += f"🏏 <b>{striker_tag}</b> is given OUT!\n"
-            wicket_msg += f"⚾ Bowler: <b>{bowler.first_name}</b>\n"
-            wicket_msg += f"💬 <i>{commentary}</i>\n\n"
-            wicket_msg += f"📊 <b>Score:</b> {striker.runs} ({striker.balls_faced})\n"
-            wicket_msg += "─────────────────────"
+            wicket_msg = f"💥 <b>WICKET!</b> 💥\n"
+            wicket_msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            wicket_msg += f"🏏 {striker_tag} — <b>OUT!</b>\n"
+            wicket_msg += f"⚾ <b>{bowler.first_name}</b> takes the wicket!\n"
+            wicket_msg += f"🏃 {striker.runs} runs off {striker.balls_faced} balls\n"
+            wicket_msg += f"💬 <i>{commentary}</i>"
             
+            _wkt_react = InlineKeyboardMarkup([[InlineKeyboardButton("🔥 Amazing", callback_data=f"react_amazingw_{group_id}"), InlineKeyboardButton("😂 Funny", callback_data=f"react_funnyw_{group_id}"), InlineKeyboardButton("👏 Nice", callback_data=f"react_nicew_{group_id}")]])
             gif_url = get_random_gif(MatchEvent.WICKET)
             try:
-                await context.bot.send_animation(group_id, animation=gif_url, caption=wicket_msg, parse_mode=ParseMode.HTML)
+                await context.bot.send_animation(group_id, animation=gif_url, caption=wicket_msg, parse_mode=ParseMode.HTML, reply_markup=_wkt_react)
             except:
-                await context.bot.send_message(group_id, wicket_msg, parse_mode=ParseMode.HTML)
+                await context.bot.send_message(group_id, wicket_msg, parse_mode=ParseMode.HTML, reply_markup=_wkt_react)
             
             await asyncio.sleep(2)
             
@@ -5788,6 +5868,40 @@ async def process_ball_result(context: ContextTypes.DEFAULT_TYPE, group_id: int,
         bowl_team.balls += 1
         bowl_team.update_overs()
         
+        # 🔮 MAGIC BALL MODE — Check for power-up ball
+        magic_ball_result = None
+        if getattr(match, "magic_ball_mode", False):
+            match_context = {
+                "match": match,
+                "bat_team": bat_team,
+                "bowl_team": bowl_team,
+                "striker": striker,
+                "bowler": bowler,
+                "batsman_num": batsman_num,
+                "bowler_num": bowler_num
+            }
+            magic_ball_result = await process_magic_ball(batsman_num, bowler_num, match_context)
+            if magic_ball_result and magic_ball_result.get("magic_type"):
+                # Apply magic ball effect
+                delta = magic_ball_result["runs"] - runs
+                if delta != 0:
+                    bat_team.score += delta
+                    striker.runs += delta
+                    bowler.runs_conceded += delta
+                # Update player_stats for magic ball tracking
+                if striker.user_id in player_stats:
+                    mb = player_stats[striker.user_id].setdefault("magicball", {})
+                    mb["magic_balls_triggered"] = mb.get("magic_balls_triggered", 0) + 1
+                    mt = magic_ball_result["magic_type"]
+                    from collections import Counter
+                    mb_counts = mb.get("_mb_counts", {})
+                    mb_counts[mt] = mb_counts.get(mt, 0) + 1
+                    mb["_mb_counts"] = mb_counts
+                    # Set best (most frequent) magic ball
+                    best = max(mb_counts, key=mb_counts.get)
+                    mb["best_magic_ball"] = MAGIC_BALL_NAMES.get(best, best)
+                runs = magic_ball_result["runs"]
+        
         # Check milestones
         await check_and_celebrate_milestones(context, group_id, match, striker, 'batting')
         
@@ -5802,6 +5916,11 @@ async def process_ball_result(context: ContextTypes.DEFAULT_TYPE, group_id: int,
         team_key = 'team_x' if match.current_batting_team == match.team_x else 'team_y'
         match.strike_zones[team_key][zone] += runs
         
+        # Update partnership
+        match.current_partnership_runs += runs
+        match.current_partnership_balls += 1
+        if match.current_partnership_runs > match.longest_partnership_this_match:
+            match.longest_partnership_this_match = match.current_partnership_runs
         # ⚡ UPDATE MOMENTUM (NEW)
         is_boundary = runs in [4, 6]
         calculate_momentum_change(match, runs, False, is_boundary)
@@ -5824,22 +5943,47 @@ async def process_ball_result(context: ContextTypes.DEFAULT_TYPE, group_id: int,
         gif_url = get_random_gif(event_type)
         
         # Build message
-        msg = f"🔴 <b>LIVE</b>\n"
+        # Build dynamic runs message
+        run_emoji = {0: "⚫", 1: "🏃", 2: "🏃‍♂️", 3: "⚡", 4: "🔥", 5: "💥", 6: "🚀"}.get(runs, "🏃")
+        freehit_prefix = ""
         if match.is_free_hit:
-            msg += "⚡ <b>FREE HIT</b>\n"
+            freehit_prefix = "⚡ <b>FREE HIT!</b>\n"
             match.is_free_hit = False
-        msg += "─────────────────────\n"
-        msg += f"🏃 <b>Runs Scored:</b> {runs}\n"
-        msg += f"💬 <i>{commentary}</i>\n"
-        msg += "─────────────────────\n"
-        msg += f"📊 <b>Score:</b> {bat_team.score}/{bat_team.wickets}"
         
+        chase_info = ""
+        if match.innings == 2:
+            rn = match.target - bat_team.score
+            bl = (match.total_overs * 6) - bowl_team.balls
+            rrr = round((rn / bl) * 6, 2) if bl > 0 else 0
+            if rn > 0:
+                chase_info = f"\n🎯 Need <b>{rn}</b> off <b>{bl}</b> balls (RRR {rrr})"
+        
+        msg = f"{freehit_prefix}{run_emoji} <b>+{runs}</b>  {'SIX!' if runs == 6 else 'FOUR!' if runs == 4 else 'runs!' if runs > 0 else 'Dot ball.'}\n"
+        msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        
+        # 🔮 Magic Ball message
+        if magic_ball_result and magic_ball_result.get("magic_type"):
+            magic_msg = magic_ball_result.get("message", "")
+            if magic_msg:
+                msg += f"{magic_msg}\n"
+        
+        msg += f"💬 <i>{commentary}</i>\n"
+        msg += f"📊 <b>{bat_team.score}/{bat_team.wickets}</b>{chase_info}"
+        
+        # React buttons for boundaries
+        _bnd_react = None
+        if runs in [4, 6]:
+            _bnd_react = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔥 Wow!", callback_data=f"react_wow_{group_id}"),
+                InlineKeyboardButton("🚀 Smashed!", callback_data=f"react_smash_{group_id}"),
+                InlineKeyboardButton("😮 Unreal!", callback_data=f"react_unreal_{group_id}"),
+            ]])
         # Send message
         try:
             if gif_url and runs > 0:
-                await context.bot.send_animation(group_id, animation=gif_url, caption=msg, parse_mode=ParseMode.HTML)
+                await context.bot.send_animation(group_id, animation=gif_url, caption=msg, parse_mode=ParseMode.HTML, reply_markup=_bnd_react)
             else:
-                await context.bot.send_message(group_id, msg, parse_mode=ParseMode.HTML)
+                await context.bot.send_message(group_id, msg, parse_mode=ParseMode.HTML, reply_markup=_bnd_react)
         except:
             await context.bot.send_message(group_id, msg, parse_mode=ParseMode.HTML)
         
@@ -6025,12 +6169,11 @@ async def offer_drs_to_captain(context: ContextTypes.DEFAULT_TYPE, group_id: int
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # ✨ Decorative Message
-    msg = f"📡〔 <b>DRS AVAILABLE</b> 〕📡\n"
-    msg += "╔══════════════════════╗\n"
-    msg += f"║  🧢 Captain {captain_tag}\n"
-    msg += "╚══════════════════════╝\n\n"
-    msg += "🤔 <b>Do you want to challenge this decision?</b>\n"
-    msg += "⏳ <b>You have 10 seconds to decide!</b>"
+    msg = f"📺 <b>DRS — DECISION REVIEW SYSTEM</b>\n"
+    msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += f"👑 Captain {captain_tag} — challenge this dismissal?\n"
+    msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += f"⏱ <b>DRS Time:</b> 10 seconds to decide!"
     
     await context.bot.send_message(group_id, msg, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     
@@ -6058,9 +6201,9 @@ async def offer_drs(context: ContextTypes.DEFAULT_TYPE, group_id: int, match: Ma
     
     wicket_text = f"🎯 <b>OVER {format_overs(match.current_bowling_team.balls)}</b>\n\n"
     wicket_text += f"🔢 Bowler: <b>{match.last_wicket_ball['bowler_number']}</b>  │  Batsman: <b>{match.last_wicket_ball['batsman_number']}</b>\n\n"
-    wicket_text += "╔══════════════════════╗\n"
-    wicket_text += f"║  🔴 WICKET — BOWLED! ║\n"
-    wicket_text += "╚══════════════════════╝\n\n"
+    wicket_text += "━━━━━━━━━━━━━━━━━━━━━\n"
+    wicket_text += f"  🔴 WICKET — BOWLED! \n"
+    wicket_text += "━━━━━━━━━━━━━━━━━━━━━\n\n"
     wicket_text += f"💬 <i>{commentary}</i>\n\n"
     wicket_text += f"🏏 <b>{batsman.first_name}:</b>  {batsman.runs} ({batsman.balls_faced})\n\n"
     wicket_text += f"🧢 Captain <b>{batting_captain.first_name}</b>: You have <b>{match.current_batting_team.drs_remaining} DRS</b> review available.\n"
@@ -6103,7 +6246,7 @@ async def drs_timeout_handler(context: ContextTypes.DEFAULT_TYPE, group_id: int,
         
         await context.bot.send_message(
             group_id,
-            "⌛〔 <b>DRS TIMEOUT</b> 〕⌛\n\n"
+            "⌛ <b>DRS TIMEOUT!</b>\n"
             "10 seconds are up — no review taken.\n"
             "⚖️ <b>Umpire's decision stands!</b>\n"
             "🔴 <b>WICKET CONFIRMED.</b>",
@@ -6149,9 +6292,10 @@ async def drs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 📺 Use DRS
         match.current_batting_team.drs_remaining -= 1
         await query.message.edit_text(
-            f"📡 <b>DRS REVIEW INITIATED!</b>\n"
+            f"📺 <b>DRS — REVIEW CALLED!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🔍 Sending to Third Umpire...\n"
-            f"⏳ <i>Checking ball-tracking data...</i>",
+            f"⏳ <i>Awaiting ball-tracking data...</i>",
             parse_mode=ParseMode.HTML
         )
         await process_drs_review(context, chat.id, match)
@@ -6159,9 +6303,9 @@ async def drs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "drs_reject":
         # ❌ Don't use DRS
         await query.message.edit_text(
-            f"✋ <b>DRS NOT TAKEN</b>\n"
-            f"🤝 Captain <b>{batting_captain.first_name}</b> accepts the umpire's call.\n"
-            f"⚖️ Decision stands.",
+            f"✋ <b>DRS DECLINED</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🤝 {batting_captain.first_name} accepts the umpire's call. Decision stands.",
             parse_mode=ParseMode.HTML
         )
         await asyncio.sleep(2)
@@ -6237,9 +6381,10 @@ async def process_drs_review(context: ContextTypes.DEFAULT_TYPE, group_id: int, 
     """
     batsman = match.last_wicket_ball["batsman"]
     
-    drs_text = "📺〔 <b>DRS REVIEW IN PROGRESS</b> 〕📺\n\n"
+    drs_text = "📺 <b>DRS — IN REVIEW...</b>\n"
+    drs_text += "━━━━━━━━━━━━━━━━━━━━━━\n"
     drs_text += "🔍 Ball-tracking analysis underway...\n"
-    drs_text += "📡 Consulting third umpire...\n"
+    drs_text += "📡 Consulting Third Umpire...\n"
     drs_text += "⏳ <i>Please hold...</i>"
     
     gif_url = get_random_gif(MatchEvent.DRS_REVIEW)
@@ -6263,13 +6408,10 @@ async def process_drs_review(context: ContextTypes.DEFAULT_TYPE, group_id: int, 
         
         gif = "https://tenor.com/bOVyJ.gif"
         
-        result_text = "📺〔 <b>DRS RESULT</b> 〕📺\n\n"
-        result_text += "╔══════════════════════╗\n"
-        result_text += "║  ✅ NOT OUT — SAVED! ║\n"
-        result_text += "╚══════════════════════╝\n\n"
-        result_text += f"🎉 <b>{batsman.first_name}</b> survives the review!\n"
-        result_text += "🔄 Decision overturned by third umpire!\n\n"
-        result_text += f"📡 DRS Remaining: {match.current_batting_team.drs_remaining}"
+        result_text = "📺 <b>DRS RESULT — NOT OUT!</b>\n"
+        result_text += "━━━━━━━━━━━━━━━━━━━━━━\n"
+        result_text += f"✅ <b>{batsman.first_name}</b> survives! Decision OVERTURNED!\n"
+        result_text += f"📡 DRS left: {match.current_batting_team.drs_remaining}"
         
         try:
             await context.bot.send_animation(group_id, animation=gif, caption=result_text, parse_mode=ParseMode.HTML)
@@ -6284,13 +6426,10 @@ async def process_drs_review(context: ContextTypes.DEFAULT_TYPE, group_id: int, 
             await execute_ball(context, group_id, match)
     else:
         # OUT confirmed
-        result_text = "📺〔 <b>DRS RESULT</b> 〕📺\n\n"
-        result_text += "╔══════════════════════╗\n"
-        result_text += "║  🔴 OUT — DECISION UPHELD ║\n"
-        result_text += "╚══════════════════════╝\n\n"
-        result_text += "⚖️ Original decision stands. Batsman is OUT.\n\n"
-        result_text += f"📊 <b>{batsman.first_name}:</b> {batsman.runs} ({batsman.balls_faced})\n"
-        result_text += f"📡 DRS Remaining: {match.current_batting_team.drs_remaining}"
+        result_text = "📺 <b>DRS RESULT — OUT!</b>\n"
+        result_text += "━━━━━━━━━━━━━━━━━━━━━━\n"
+        result_text += f"🔴 <b>{batsman.first_name}</b> is OUT! Decision UPHELD!\n"
+        result_text += f"🏃 Score: {batsman.runs}({batsman.balls_faced})  ·  📡 DRS left: {match.current_batting_team.drs_remaining}"
         
         try:
             await context.bot.send_animation(group_id, animation=gif_url, caption=result_text, parse_mode=ParseMode.HTML)
@@ -6332,6 +6471,15 @@ async def confirm_wicket_and_continue(context: ContextTypes.DEFAULT_TYPE, group_
     out_player.is_out = True
     bat_team.wickets += 1  # ✅ INCREMENT TEAM WICKET COUNT
     bowler.wickets += 1    # ✅ INCREMENT BOWLER WICKET COUNT
+    # Save & reset partnership on wicket
+    if match.current_partnership_runs > 0:
+        _batsman_name = match.current_batting_team.players[match.current_batting_team.current_batsman_idx].first_name if match.current_batting_team.current_batsman_idx is not None else '?'
+        _ns_name = match.current_batting_team.players[match.current_batting_team.current_non_striker_idx].first_name if match.current_batting_team.current_non_striker_idx is not None else '?'
+        match.partnership_history.append({'p1': _batsman_name, 'p2': _ns_name, 'runs': match.current_partnership_runs, 'balls': match.current_partnership_balls})
+    match.current_partnership_runs = 0
+    match.current_partnership_balls = 0
+    # Increment over wickets counter
+    match.current_over_wickets += 1
     bowler.consecutive_wickets += 1  # 🎯 Increment consecutive wickets for hat-trick
     
     logger.info(f"✅ Wickets updated: Team={bat_team.wickets}, Bowler={bowler.wickets}, Consecutive={bowler.consecutive_wickets}")
@@ -6414,16 +6562,12 @@ async def confirm_wicket_and_continue(context: ContextTypes.DEFAULT_TYPE, group_
         await end_innings(context, group_id, match)
         return
     
-    msg = f"🔴〔 <b>WICKET!</b> 〕🔴\n\n"
-    msg += f"💀 <b>{out_player.first_name}</b> has been dismissed!\n\n"
-    msg += f"╔══════════════════════╗\n"
-    msg += f"║  🧢 NEW BATSMAN NEEDED  ║\n"
-    msg += f"╚══════════════════════╝\n\n"
-    msg += f"👉 <b>{captain_tag}</b>, send in your next batter!\n"
-    msg += f"⌨️ <code>/batting [serial number]</code>\n\n"
-    msg += f"📊 <b>Score:</b> {bat_team.score}/{bat_team.wickets}\n"
-    msg += f"👥 <b>Players available:</b> {available_count}\n\n"
-    msg += f"⏳ <i>2 minutes to select...</i>"
+    msg = f"🏏 <b>NEW BATSMAN NEEDED!</b>\n"
+    msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += f"💀 <b>{out_player.first_name}</b> dismissed!\n"
+    msg += f"📊 Score: <b>{bat_team.score}/{bat_team.wickets}</b> | 🔋 <b>{available_count}</b> batter(s) left\n"
+    msg += f"👑 {captain_tag} — send in your next batter!\n"
+    msg += f"⌨️ <code>/batting [number]</code>  ⏳ <i>4 min window</i>"
     
     await context.bot.send_message(group_id, msg, parse_mode=ParseMode.HTML)
     logger.info("📨 New batsman request sent to group")
@@ -6508,6 +6652,12 @@ async def check_over_complete(context: ContextTypes.DEFAULT_TYPE, group_id: int,
         bowler = type("obj", (object,), {"first_name": "Unknown", "wickets": 0, "runs_conceded": 0})
         logger.error("🚫 No bowler found at over complete!")
     
+    # Save over wickets
+    if bat_team == match.team_x:
+        match.team_x_over_wickets.append(match.current_over_wickets)
+    else:
+        match.team_y_over_wickets.append(match.current_over_wickets)
+    match.current_over_wickets = 0
     # ✅ STEP 1: SEND MINI SCORECARD
     mini_card = generate_mini_scorecard(match)
     try:
@@ -6534,15 +6684,34 @@ async def check_over_complete(context: ContextTypes.DEFAULT_TYPE, group_id: int,
     new_striker = bat_team.players[bat_team.current_batsman_idx] if bat_team.current_batsman_idx is not None else None
     new_non_striker = bat_team.players[bat_team.current_non_striker_idx] if bat_team.current_non_striker_idx is not None else None
 
-    # Over Complete Summary
-    summary = f"🏁〔 <b>END OF OVER {format_overs(bowl_team.balls)}</b> 〕🏁\n"
-    summary += "═══════════════════════\n"
-    summary += f"🎳 <b>{bowler.first_name}</b> finishes his over.\n\n"
-    summary += f"🔄 <b>STRIKE ROTATION:</b>\n"
-    summary += f"   🏏 New Striker: <b>{new_striker.first_name if new_striker else 'None'}</b>\n"
-    summary += f"   🏃 Non-Striker: <b>{new_non_striker.first_name if new_non_striker else 'None'}</b>\n\n"
-    summary += "═══════════════════════"
-    
+    # Enhanced over-complete summary
+    _over_runs_list = match.team_x_over_runs if bat_team == match.team_x else match.team_y_over_runs
+    _over_wkts_list = match.team_x_over_wickets if bat_team == match.team_x else match.team_y_over_wickets
+    _last_runs = _over_runs_list[-1] if _over_runs_list else 0
+    _last_wkts = _over_wkts_list[-1] if _over_wkts_list else 0
+    # Run history bar (last 5 overs)
+    _hist = ""
+    for _r in (_over_runs_list[-5:] if _over_runs_list else []):
+        if _r >= 12: _hist += "🟣"
+        elif _r >= 9: _hist += "🔴"
+        elif _r >= 6: _hist += "🟠"
+        elif _r >= 3: _hist += "🟡"
+        else: _hist += "⚫"
+    _rr = round(bat_team.score / (bat_team.balls / 6), 2) if bat_team.balls > 0 else 0.0
+    _part_txt = f"  ┊  🤝 Partnership: {match.current_partnership_runs}({match.current_partnership_balls})" if match.current_partnership_runs > 0 else ""
+    summary = f"🏁 <b>END OF OVER {format_overs(bowl_team.balls)}</b>\n"
+    summary += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+    summary += f"⚾ <b>{bowler.first_name}</b>  ·  This over: <b>{_last_runs} runs"
+    if _last_wkts: summary += f", {_last_wkts}W"
+    summary += f"</b>\n"
+    summary += f"📊 Score: <b>{bat_team.score}/{bat_team.wickets}</b>  ┊  RR: <b>{_rr}</b>{_part_txt}\n"
+    if _hist: summary += f"📈 Last 5 overs: {_hist}\n"
+    summary += f"🔄 <b>{new_striker.first_name if new_striker else '—'}</b> now on strike"
+    if match.innings == 2 and match.target > 0:
+        _needed = match.target - bat_team.score
+        _bl = (match.total_overs * 6) - bat_team.balls
+        _rrr = round(_needed / (_bl / 6), 2) if _bl > 0 else 0
+        summary += f"\n🎯 Need <b>{_needed}</b> off <b>{_bl}</b> balls  (RRR: {_rrr})"
     await context.bot.send_message(group_id, summary, parse_mode=ParseMode.HTML)
     logger.info("📨 Over summary sent to group")
     
@@ -7035,16 +7204,16 @@ async def bring_next_player(context: ContextTypes.DEFAULT_TYPE, chat_id: int, au
         f"🔨〔 <b>PLAYER UP FOR AUCTION</b> 〕🔨\n\n"
         f"👤 <b>{player_tag}</b>\n"
         f"💰 Base Price: <b>{player['base_price']} coins</b>\n\n"
-        f"╔══════════════════════╗\n"
-        f"║  📊 CAREER STATS  ║\n"
-        f"╚══════════════════════╝\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"  📊 CAREER STATS  \n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"🏟 Matches: <b>{m}</b>\n"
         f"🏏 Runs: <b>{r}</b>  │  Avg: <b>{avg}</b>  │  SR: <b>{sr}</b>\n"
         f"🎯 Wickets: <b>{w}</b>  │  Economy: <b>{eco}</b>\n"
         f"🔥 Best: <b>{best}</b>\n\n"
-        f"╔══════════════════════╗\n"
-        f"║  💵 CURRENT BID  ║\n"
-        f"╚══════════════════════╝\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"  💵 CURRENT BID  \n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"💲 Bid: <b>{player['base_price']}</b>  │  Leader: <b>—</b>\n"
         f"⏱ Timer: <b>30 seconds</b>\n\n"
         f"⌨️ <code>/bid [amount]</code> to place your bid!\n"
@@ -7429,7 +7598,7 @@ async def solo_join_countdown(context, chat_id, match):
             if remaining <= 30 and remaining > 20 and not warning_sent:
                 await context.bot.send_message(
                     chat_id, 
-                    "⚠️ <b>Hurry Up! Only 30 seconds left to join!</b>", 
+                    "⏰ <b>LAST CALL!</b> 30 seconds left to join!\n━━━━━━━━━━━━━━━━━━━━━━\n👇 Tap below NOW — hurry up! 🏏", 
                     parse_mode=ParseMode.HTML
                 )
                 warning_sent = True
@@ -7634,41 +7803,18 @@ async def magicball_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     active_matches[group_id] = match
     
     # Welcome message with magic ball info
-    text = "╔═══════════════════════╗\n"
-    text += "    🎯 <b>MAGIC BALL MODE</b>\n"
-    text += "╚═══════════════════════╝\n\n"
-    
-    text += "✨ <b>Special balls can appear randomly!</b>\n\n"
-    
+    text = "🎯 <b>MAGIC BALL MODE</b>\n"
     text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += "🎨 <b>MAGIC BALL TYPES:</b>\n"
-    text += "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    
-    text += "🧊 <b>Freeze Ball</b>\n   └ Guaranteed dot ball!\n\n"
-    text += "🔥 <b>Fire Ball</b>\n   └ Guaranteed SIX!\n\n"
-    text += "👻 <b>Ghost Ball</b>\n   └ Hidden result revealed later!\n\n"
-    text += "⚡ <b>Double Ball</b>\n   └ Runs × 2!\n\n"
-    text += "🛡️ <b>Shield Ball</b>\n   └ Cannot get out!\n\n"
-    text += "🔄 <b>Reverse Ball</b>\n   └ Get opponent's number!\n\n"
-    text += "🎲 <b>Wild Ball</b>\n   └ Completely random!\n\n"
-    text += "🔀 <b>Swap Ball</b>\n   └ Numbers swap!\n\n"
-    
+    text += "✨ <b>30% chance</b> of a special ball every delivery!\n"
     text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += "⚡ <b>Chance: 15% per ball</b>\n"
-    text += "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    text += "💎 <b>Triple Ball</b>\n   └ Runs × 3!\n\n"
-    text += "🌈 <b>Rainbow Ball</b>\n   └ Lucky 7 runs!\n\n"
-    text += "🧲 <b>Magnet Ball</b>\n   └ Forced dot!\n\n"
-    text += "🍀 <b>Lucky Ball</b>\n   └ Bonus runs (4-10)!\n\n"
-    text += "⏮️ <b>Rewind Ball</b>\n   └ Ball doesn't count!\n\n"
-    text += "🎭 <b>Mystery Ball</b>\n   └ Mimic previous!\n\n"
-    text += "🎰 <b>Jackpot Ball</b>\n   └ 0 or 12 runs!\n\n"
-    
+    text += "🧊 <b>Freeze</b> — Dot  ·  🔥 <b>Fire</b> — Six  ·  ⚡ <b>Double</b> — ×2\n"
+    text += "💎 <b>Triple</b> — ×3  ·  🛡️ <b>Shield</b> — Safe  ·  🔄 <b>Reverse</b>\n"
+    text += "🎲 <b>Wild</b> — Random  ·  🔀 <b>Swap</b> — Switch  ·  👻 <b>Ghost</b>\n"
+    text += "🌈 <b>Rainbow</b> — 7  ·  🍀 <b>Lucky</b> — 4-10  ·  🎰 <b>Jackpot</b>\n"
+    text += "🧲 <b>Magnet</b> — Dot  ·  ⏮️ <b>Rewind</b> — Retry  ·  🎭 <b>Mystery</b>\n"
     text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += "⚡ <b>Chance: 30% per ball</b>\n"
-    text += "🎯 <b>15 UNIQUE TYPES!</b>\n"
+    text += "🎯 <b>15 UNIQUE BALL TYPES!</b>  Expect the unexpected 🔥\n"
     text += "━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    
     text += "👥 <b>Click buttons below to join!</b>"
     
     keyboard = [
@@ -7869,8 +8015,9 @@ async def ai_toss_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_photo(
             user.id,
             photo=MEDIA_ASSETS.get("toss"),
-            caption=f"🎉 <b>YOU WON THE TOSS!</b>\n\n"
-                    f"🪙 Result: {toss_result.upper()}\n\n"
+            caption=f"🪙 <b>YOU WON THE TOSS!</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"Result: <b>{toss_result.upper()}</b>\n"
                     f"What do you want to do?",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.HTML
@@ -7879,15 +8026,16 @@ async def ai_toss_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # AI won toss - AI chooses randomly
         ai_choice = random.choice(["bat", "bowl"])
         
-        msg = f"🤖 <b>AI WON THE TOSS!</b>\n\n"
-        msg += f"🪙 Result: {toss_result.upper()}\n"
-        msg += f"AI chose to <b>{'BAT' if ai_choice == 'bat' else 'BOWL'}</b> first.\n\n"
+        msg = f"🤖 <b>AI WON THE TOSS!</b>\n"
+        msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        msg += f"🪙 <b>{toss_result.upper()}</b>  ·  AI chose to <b>{'BAT' if ai_choice == 'bat' else 'BOWL'}</b> first\n"
         
         if ai_choice == "bat":
             # AI bats first
-            match["innings"] = 2
+            match["innings"] = 1  # First innings - AI batting
+            match["ai_batting_first"] = True  # AI is batting in first innings
             match["phase"] = "waiting_ai"
-            msg += "🤖 AI is batting first.\n⚾ You'll bowl!"
+            msg += "⚾ You're bowling first — good luck!"
             
             try:
                 await query.message.delete()
@@ -8012,37 +8160,69 @@ async def ai_play_ball(context: ContextTypes.DEFAULT_TYPE, user_id: int):
         else:  # First innings
             weights = [1, 1.5, 2, 2.5, 2, 1.5, 1]  # Slightly favor 3
         ai_choice = random.choices([0, 1, 2, 3, 4, 5, 6], weights=weights)[0]
-    else:  # HARD - SUPER INTELLIGENT BOWLING
-        # Track user's recent shots (if available)
+    else:  # HARD - GOD LEVEL BOWLING 😈
+        # Track user's batting history to predict their shots
         user_wickets = match["user_wickets"]
         
-        if match["innings"] == 2:  # Defending a target
+        if "user_bat_history" not in match:
+            match["user_bat_history"] = []
+        
+        # Find user's most common batting numbers - bowl THOSE to get them out
+        predicted_shot = None
+        if len(match["user_bat_history"]) >= 3:
+            recent = match["user_bat_history"][-6:]
+            freq = {}
+            for n in recent:
+                freq[n] = freq.get(n, 0) + 1
+            predicted_shot = max(freq, key=freq.get)  # Bowl user's favorite number!
+        
+        if match.get("ai_batting_first") and match["innings"] == 1:
+            # Defending in first innings (user batting, AI bowling)
+            # Bowl to contain user's score
+            user_run_rate = user_score / max(user_balls, 1)
+            if user_run_rate > 4:  # User scoring fast - bowl variations
+                weights = [2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5]  # Pure random to confuse
+            elif user_wickets == 0 and user_balls > 3:  # User surviving - attack
+                weights = [1.0, 1.5, 2.5, 3.5, 2.5, 1.5, 1.0]
+            else:
+                weights = [1.5, 2.0, 2.5, 3.0, 2.5, 2.0, 1.5]
+        elif match["innings"] == 2:  # Defending a target (user chasing)
             runs_needed = target - user_score
             balls_left = (match["overs"] * 6) - user_balls
             
-            if runs_needed <= 6:  # Very close - try to get them out
-                # Bowls numbers user is more likely to choose under pressure
-                weights = [1.2, 1.5, 2.5, 3, 2.5, 2, 1.5]
-            elif runs_needed > balls_left * 5:  # User needs to attack
-                # They'll play big shots - bowl defensively
-                weights = [2, 2, 2.5, 2.5, 1.5, 1.2, 1]  # Avoid 4,5,6
-            elif balls_left <= 6:  # Last over - pressure bowling
-                weights = [1.5, 2, 2.5, 3, 2.5, 2, 1.5]
-            else:  # Normal bowling
-                weights = [1.5, 2, 2.5, 2.8, 2.5, 2, 1.5]
-        else:  # First innings - bowl to dismiss
-            if user_wickets >= 7:  # Many wickets down - aggressive
-                weights = [1, 1.5, 2.5, 3, 2.5, 1.8, 1.2]
-            elif user_score > (user_balls / 6) * 8:  # User scoring fast
-                # They're attacking - bowl variations
-                weights = [2, 2, 2.2, 2.5, 2.2, 2, 1.8]
-            else:  # Normal situation
-                weights = [1.5, 2, 2.5, 3, 2.5, 2, 1.5]
+            if runs_needed <= 0:  # User won, shouldn't happen
+                weights = [1, 1, 1, 1, 1, 1, 1]
+            elif runs_needed <= 3 and balls_left > 0:  # VERY TIGHT - bowl user's fav
+                weights = [1.5, 2.0, 3.0, 3.5, 3.0, 2.0, 1.5]
+            elif balls_left <= 3:  # Death bowling - pressure
+                weights = [1.5, 2.0, 3.0, 4.0, 3.0, 2.0, 1.5]
+            elif runs_needed > balls_left * 4:  # User needs to slog
+                # They'll play 5s and 6s - bowl those!
+                weights = [1.0, 1.5, 2.0, 2.5, 4.0, 5.0, 4.0]
+            elif runs_needed < balls_left * 1.5:  # User coasting
+                # They'll play safe - bowl 1,2,3
+                weights = [2.0, 4.0, 4.5, 4.0, 2.0, 1.5, 1.0]
+            else:
+                weights = [1.5, 2.5, 3.0, 4.0, 3.0, 2.5, 1.5]
+        else:  # First innings user batting (AI bowling normally)
+            if user_wickets == 0 and user_balls > 6:
+                # User is set - try variations
+                weights = [2.0, 2.5, 3.0, 3.5, 3.0, 2.5, 2.0]
+            elif user_score > user_balls * 3:  # High run rate
+                # They're attacking - bowl 4,5,6 area to catch them
+                weights = [1.0, 1.5, 2.0, 2.5, 4.0, 4.5, 4.0]
+            else:
+                weights = [1.5, 2.0, 2.5, 3.5, 2.5, 2.0, 1.5]
         
+        # Generate bowling choice
         ai_choice = random.choices([0, 1, 2, 3, 4, 5, 6], weights=weights)[0]
         
-        # 20% chance to bowl a completely random ball (unpredictability)
-        if random.random() < 0.20:
+        # GOD MODE: Override to bowl user's predicted shot (50% chance if we have data)
+        if predicted_shot is not None and random.random() < 0.50:
+            ai_choice = predicted_shot  # Bowl exactly what user likes to play!
+        
+        # 5% true random to avoid being completely predictable
+        if random.random() < 0.05:
             ai_choice = random.randint(0, 6)
     
     match["ai_number"] = ai_choice
@@ -8170,41 +8350,71 @@ async def ai_bat_ball(context: ContextTypes.DEFAULT_TYPE, user_id: int, user_bow
             else:  # Normal chase
                 weights = [0.8, 1.5, 2, 2, 1.8, 1.2, 1]
             ai_bat = random.choices([0, 1, 2, 3, 4, 5, 6], weights=weights)[0]
-    else:  # hard - SUPER INTELLIGENT AI
+    else:  # hard - GOD LEVEL ULTIMATE AI 😈
         runs_needed = target - match["ai_score"]
         balls_left = (match["overs"] * 6) - match["ai_balls"]
         wickets_left = 1 - match["ai_wickets"]  # Only 1 wicket
         
-        if runs_needed <= 0:  # Already won
-            ai_bat = random.randint(1, 6)
+        # Track user bowling patterns for god-level prediction
+        if "user_bowl_history" not in match:
+            match["user_bowl_history"] = []
+        
+        # Predict and avoid user's most common bowling number
+        predicted_avoid = None
+        if len(match["user_bowl_history"]) >= 3:
+            recent = match["user_bowl_history"][-6:]
+            freq = {}
+            for n in recent:
+                freq[n] = freq.get(n, 0) + 1
+            predicted_avoid = max(freq, key=freq.get)
+        
+        if runs_needed <= 0:  # Already winning
+            ai_bat = random.randint(1, 4)
         else:
-            if balls_left <= 2:  # Last 2 balls - ALL OUT ATTACK
-                weights = [0.1, 0.2, 0.3, 0.5, 3, 4, 5]
-            elif balls_left <= 6:  # Last over - aggressive
-                if runs_needed > balls_left * 4:  # Need 4+ per ball
-                    weights = [0.1, 0.2, 0.4, 0.8, 3.5, 4, 5]
-                elif runs_needed > balls_left * 2:  # Need 2+ per ball
-                    weights = [0.3, 0.5, 1, 1.5, 3, 3.5, 4]
-                else:  # Comfortable chase
-                    weights = [0.5, 2, 3, 2.5, 2, 1, 0.5]
-            elif wickets_left == 1:  # Only 1 wicket - play carefully but smart
+            if balls_left <= 1:  # LAST BALL - maximum aggression
+                weights = [0.0, 0.05, 0.1, 0.2, 2.5, 3.5, 6.0]
+            elif balls_left <= 3:  # Last 3 balls
+                if runs_needed >= balls_left * 4:
+                    weights = [0.0, 0.05, 0.1, 0.3, 2.5, 4.0, 6.0]
+                else:
+                    weights = [0.1, 0.2, 0.5, 1.0, 3.0, 4.0, 5.0]
+            elif balls_left <= 6:  # Last over
+                required_rr = runs_needed / balls_left
+                if required_rr >= 5:
+                    weights = [0.0, 0.1, 0.2, 0.5, 2.5, 4.0, 6.0]
+                elif required_rr >= 3:
+                    weights = [0.1, 0.2, 0.8, 1.5, 3.0, 4.0, 5.0]
+                elif required_rr >= 2:
+                    weights = [0.3, 0.8, 2.0, 2.8, 2.8, 3.0, 3.5]
+                else:
+                    weights = [0.5, 2.0, 3.0, 3.0, 2.0, 1.5, 1.0]
+            else:
+                # Strategic play based on required run rate
                 required_rr = runs_needed / max(balls_left, 1)
-                if required_rr > 3:  # Need big shots
-                    weights = [0.2, 0.6, 1.2, 2, 3.5, 4, 4.5]
-                elif required_rr > 2:  # Need moderate acceleration
-                    weights = [0.5, 1.5, 2.5, 2.8, 3, 2.5, 2]
-                elif required_rr < 1:  # Cruise mode
-                    weights = [1.5, 3, 3.5, 2.5, 1.5, 0.8, 0.3]
-                else:  # Balanced
-                    weights = [0.8, 2, 2.8, 2.8, 2.5, 1.8, 1.5]
-            else:  # Already out - shouldn't happen but safety
-                weights = [1, 1, 1, 1, 1, 1, 1]
+                if required_rr >= 5:
+                    weights = [0.05, 0.1, 0.3, 0.8, 2.5, 4.0, 6.0]
+                elif required_rr >= 3.5:
+                    weights = [0.1, 0.2, 0.8, 1.5, 3.0, 4.5, 5.0]
+                elif required_rr >= 2.5:
+                    weights = [0.2, 0.5, 1.5, 2.5, 3.5, 4.0, 4.0]
+                elif required_rr >= 1.5:
+                    weights = [0.5, 1.2, 2.5, 3.5, 3.0, 2.5, 2.0]
+                elif required_rr >= 1.0:
+                    weights = [1.0, 2.5, 3.5, 3.5, 2.5, 1.5, 0.8]
+                else:  # Cruise control
+                    weights = [2.0, 3.5, 4.0, 3.0, 1.5, 0.8, 0.3]
             
-            # Add randomness to avoid being too predictable
+            # Generate shot
             ai_bat = random.choices([0, 1, 2, 3, 4, 5, 6], weights=weights)[0]
             
-            # 15% chance to play an unexpected shot (unpredictability)
-            if random.random() < 0.15:
+            # God mode: avoid user's predicted delivery number
+            if predicted_avoid is not None and ai_bat == predicted_avoid:
+                avoid_weights = weights.copy()
+                avoid_weights[predicted_avoid] = 0.01  # Almost never pick predicted
+                ai_bat = random.choices([0, 1, 2, 3, 4, 5, 6], weights=avoid_weights)[0]
+            
+            # 5% surprise shot (keeps it slightly human-like)
+            if random.random() < 0.05:
                 ai_bat = random.randint(0, 6)
     
     # Process result
@@ -8406,6 +8616,85 @@ async def ai_end_match(context: ContextTypes.DEFAULT_TYPE, user_id: int, result:
         if result == "user_won":
             player_stats[user_id]["matches_won"] = player_stats[user_id].get("matches_won", 0) + 1
         save_data()
+    
+    # Save AI stats to database
+    try:
+        difficulty = match.get("difficulty", "easy")
+        won = 1 if result == "user_won" else 0
+        user_runs = match["user_stats"]["runs"]
+        user_sixes = match["user_stats"]["sixes"]
+        user_fours = match["user_stats"]["fours"]
+        
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        
+        # Create table if not exists (migration safety)
+        c.execute('''CREATE TABLE IF NOT EXISTS ai_stats (
+            user_id INTEGER PRIMARY KEY,
+            total_matches INTEGER DEFAULT 0,
+            wins INTEGER DEFAULT 0,
+            losses INTEGER DEFAULT 0,
+            easy_matches INTEGER DEFAULT 0,
+            medium_matches INTEGER DEFAULT 0,
+            hard_matches INTEGER DEFAULT 0,
+            easy_wins INTEGER DEFAULT 0,
+            medium_wins INTEGER DEFAULT 0,
+            hard_wins INTEGER DEFAULT 0,
+            highest_score INTEGER DEFAULT 0,
+            total_runs INTEGER DEFAULT 0,
+            total_sixes INTEGER DEFAULT 0,
+            total_fours INTEGER DEFAULT 0,
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        
+        c.execute("SELECT user_id FROM ai_stats WHERE user_id = ?", (user_id,))
+        exists = c.fetchone()
+        
+        if not exists:
+            c.execute("""INSERT INTO ai_stats 
+                (user_id, total_matches, wins, losses,
+                 easy_matches, medium_matches, hard_matches,
+                 easy_wins, medium_wins, hard_wins,
+                 highest_score, total_runs, total_sixes, total_fours)
+                VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (user_id, won, 1 - won,
+                 1 if difficulty == "easy" else 0,
+                 1 if difficulty == "medium" else 0,
+                 1 if difficulty == "hard" else 0,
+                 won if difficulty == "easy" else 0,
+                 won if difficulty == "medium" else 0,
+                 won if difficulty == "hard" else 0,
+                 user_runs, user_runs, user_sixes, user_fours))
+        else:
+            c.execute("""UPDATE ai_stats SET
+                total_matches = total_matches + 1,
+                wins = wins + ?,
+                losses = losses + ?,
+                easy_matches = easy_matches + ?,
+                medium_matches = medium_matches + ?,
+                hard_matches = hard_matches + ?,
+                easy_wins = easy_wins + ?,
+                medium_wins = medium_wins + ?,
+                hard_wins = hard_wins + ?,
+                highest_score = MAX(highest_score, ?),
+                total_runs = total_runs + ?,
+                total_sixes = total_sixes + ?,
+                total_fours = total_fours + ?,
+                last_updated = CURRENT_TIMESTAMP
+                WHERE user_id = ?""",
+                (won, 1 - won,
+                 1 if difficulty == "easy" else 0,
+                 1 if difficulty == "medium" else 0,
+                 1 if difficulty == "hard" else 0,
+                 won if difficulty == "easy" else 0,
+                 won if difficulty == "medium" else 0,
+                 won if difficulty == "hard" else 0,
+                 user_runs, user_runs, user_sixes, user_fours, user_id))
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"AI stats save error: {e}")
     
     # Remove match
     del ai_matches[user_id]
@@ -8714,27 +9003,26 @@ async def end_innings(context: ContextTypes.DEFAULT_TYPE, group_id: int, match: 
         overs_played = max(bat_team.overs, 0.1)
         rr = round(bat_team.score / overs_played, 2)
 
-        msg = "🌅〔 <b>INNINGS BREAK</b> 〕🌅\n"
-        msg += "╔══════════════════════╗\n"
-        msg += f"║  🏏 {bat_team.name}  ║\n"
-        msg += "╚══════════════════════╝\n\n"
-        msg += f"📊 <b>Final Score:</b>  {bat_team.score}/{bat_team.wickets}  ({format_overs(bat_team.balls)} ov)\n"
-        msg += f"📈 <b>Run Rate:</b>  {rr}\n\n"
+        msg = "🌅 <b>INNINGS BREAK</b> 🌅\n"
+        msg += "━━━━━━━━━━━━━━━━━━━━━━\n"
+        msg += f"🏏 <b>{bat_team.name}</b>  ➜  {bat_team.score}/{bat_team.wickets}  ({format_overs(bat_team.balls)} ov)\n"
+        msg += f"📈 Run Rate: <b>{rr}</b>\n"
+        msg += "━━━━━━━━━━━━━━━━━━━━━━\n"
         
         active_batters = [p for p in bat_team.players if p.balls_faced > 0 or p.is_out]
         if active_batters:
             top_scorer = max(active_batters, key=lambda p: p.runs)
-            msg += f"⭐ <b>Top Scorer:</b>  {top_scorer.first_name}  {top_scorer.runs} ({top_scorer.balls_faced})\n"
+            msg += f"⭐ Top Scorer: <b>{top_scorer.first_name}</b>  {top_scorer.runs}({top_scorer.balls_faced})\n"
         
         active_bowlers = [p for p in bowl_team.players if p.balls_bowled > 0]
         if active_bowlers:
             best_bowler = max(active_bowlers, key=lambda p: (p.wickets, -p.runs_conceded))
-            msg += f"🎯 <b>Best Bowler:</b>  {best_bowler.first_name}  {best_bowler.wickets}/{best_bowler.runs_conceded}\n"
-            
-        msg += "\n╔══════════════════════╗\n"
-        msg += f"║  🎯 TARGET: {match.target}  ║\n"
-        msg += "╚══════════════════════╝\n"
-        msg += "⏳ <i>2nd Innings begins in 30 seconds...</i>"
+            msg += f"🎯 Best Bowler: <b>{best_bowler.first_name}</b>  {best_bowler.wickets}/{best_bowler.runs_conceded}\n"
+        
+        msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        msg += f"🎯 <b>TARGET: {match.target}</b>\n"
+        msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        msg += f"⏳ <i>2nd Innings begins in 30 seconds...</i>"
         
         gif_url = get_random_gif(MatchEvent.INNINGS_BREAK)
         try:
@@ -8763,13 +9051,15 @@ async def end_innings(context: ContextTypes.DEFAULT_TYPE, group_id: int, match: 
         rrr = round((runs_needed / balls_available) * 6, 2)
         
         start_msg = "🚀〔 <b>THE CHASE IS ON!</b> 〕🚀\n"
-        start_msg += "╔══════════════════════╗\n"
-        start_msg += f"║  🏏 {chase_team.name}  ║\n"
-        start_msg += "╚══════════════════════╝\n\n"
+        start_msg += "━━━━━━━━━━━━━━━━━━━━━\n"
+        start_msg += f"  🏏 {chase_team.name}  \n"
+        start_msg += "━━━━━━━━━━━━━━━━━━━━━\n\n"
+        start_msg += "━━━━━━━━━━━━━━━━━━━━━━\n"
         start_msg += "🧮 <b>CHASE EQUATION:</b>\n"
         start_msg += f"🎯 Need  <b>{runs_needed} runs</b>\n"
         start_msg += f"⚾ In  <b>{balls_available} balls</b>  ({match.total_overs} overs)\n"
-        start_msg += f"📉 Required RR:  <b>{rrr}</b>\n\n"
+        start_msg += f"📉 Required RR:  <b>{rrr}</b>\n"
+        start_msg += "━━━━━━━━━━━━━━━━━━━━━━\n"
         start_msg += "🍀 <i>Best of luck to both teams! Let the battle begin!</i>"
         
         await context.bot.send_message(group_id, start_msg, parse_mode=ParseMode.HTML)
@@ -8781,9 +9071,12 @@ async def end_innings(context: ContextTypes.DEFAULT_TYPE, group_id: int, match: 
         captain = match.get_captain(chase_team)
         captain_tag = get_user_tag(captain)
         
-        msg = f"🏏〔 <b>SELECT YOUR OPENER</b> 〕🏏\n\n"
+        msg = f"🏏〔 <b>SELECT YOUR OPENER</b> 〕🏏\n"
+        msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
         msg += f"👉 <b>{captain_tag}</b>, who's walking in first?\n"
-        msg += f"⌨️ <code>/batting [serial_number]</code>"
+        msg += f"⌨️ <code>/batting [serial_number]</code>\n"
+        msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        msg += f"⏱ <b>Batting Time:</b> 30 seconds"
 
         await context.bot.send_message(group_id, msg, parse_mode=ParseMode.HTML)
         
@@ -8849,9 +9142,9 @@ async def determine_match_winner(context: ContextTypes.DEFAULT_TYPE, group_id: i
         
         tie_msg = (
             f"🤝〔 <b>MATCH TIED!</b> 〕🤝\n"
-            f"╔══════════════════════╗\n"
-            f"║  Both teams: {first.score}/{first.wickets}  ║\n"
-            f"╚══════════════════════╝\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  Both teams: {first.score}/{first.wickets}  \n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"🎭 <i>What a breathtaking finish!\n"
             f"Neither team could separate themselves!</i>"
         )
@@ -9290,7 +9583,7 @@ async def send_final_scorecard(context: ContextTypes.DEFAULT_TYPE, group_id: int
     
     # Build Complete Scorecard
     msg = "📋 <b>OFFICIAL MATCH SCORECARD</b>\n"
-    msg += "╔══════════════════════╗\n"
+    msg += "━━━━━━━━━━━━━━━━━━━━━\n"
     # Match Info
     msg += f"🏆 <b>Format:</b> {match.total_overs} Overs\n"
     msg += f"🏟 <b>Venue:</b> {match.group_name}\n"
@@ -9307,7 +9600,7 @@ async def send_final_scorecard(context: ContextTypes.DEFAULT_TYPE, group_id: int
     msg += "<b>🔸 SECOND INNINGS</b>\n\n"
     msg += format_batting_card(second_innings, 2)
     msg += format_bowling_card(first_innings, second_innings.name)
-    msg += "\n╚══════════════════════╝\n\n"
+    msg += "\n━━━━━━━━━━━━━━━━━━━━━\n\n"
     
     # Match Result
     winner = None
@@ -9458,25 +9751,28 @@ async def send_victory_message(context: ContextTypes.DEFAULT_TYPE, group_id: int
     w_rr = round(winner.score / max(winner.overs, 0.1), 2)
     l_rr = round(loser.score / max(loser.overs, 0.1), 2)
     
-    msg = f"🏆〔 <b>{winner.name.upper()} WINS!</b> 〕🏆\n"
-    msg += "╔══════════════════════╗\n"
-    msg += f"║  🎉 Victory by {margin}  ║\n"
-    msg += "╚══════════════════════╝\n\n"
+    msg = f"🏆 <b>{winner.name.upper()} WIN!</b> 🏆\n"
+    msg += "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += f"🎉 Victory by <b>{margin}</b>\n"
+    msg += "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     
     msg += f"🥇 <b>{winner.name}</b>\n"
-    msg += f"   📊 {winner.score}/{winner.wickets}  ({format_overs(winner.balls)} ov)  │ RR {w_rr}\n"
-    msg += f"   ⭐ Star Player: {w_star}\n\n"
+    msg += f"   📊 {winner.score}/{winner.wickets}  ({format_overs(winner.balls)} ov)  ·  RR {w_rr}\n"
+    msg += f"   ⭐ {w_star}\n\n"
     
     msg += f"🥈 <b>{loser.name}</b>\n"
-    msg += f"   📊 {loser.score}/{loser.wickets}  ({format_overs(loser.balls)} ov)  │ RR {l_rr}\n"
-    msg += f"   ⭐ Star Player: {l_star}\n\n"
+    msg += f"   📊 {loser.score}/{loser.wickets}  ({format_overs(loser.balls)} ov)  ·  RR {l_rr}\n"
+    msg += f"   ⭐ {l_star}\n\n"
     
-    msg += "═══════════════════════\n"
+    msg += "━━━━━━━━━━━━━━━━━━━━━━━━\n"
     
     if "wicket" in margin.lower():
-        msg += "💪 <i>Dominant chase! Clinical finish!</i> 🏃‍♂️🏁"
+        msg += "🏃 <i>Clinical chase! The batters took it home!</i> 🏁"
     else:
-        msg += "🔥 <i>Solid defence! Bowlers delivered!</i> 🎳🏆"
+        msg += "🎳 <i>Bowlers defended brilliantly! That's cricket!</i> 🏆"
+    
+    if match.game_mode == "MAGICBALL":
+        msg += "\n🔮 <i>Magic Ball power made all the difference!</i> ✨"
     
     # Try sending with photo first
     try:
@@ -9532,10 +9828,10 @@ async def start_super_over(context: ContextTypes.DEFAULT_TYPE, group_id: int, ma
     
     # Announcement
     msg = f"⚡〔 <b>SUPER OVER!</b> 〕⚡\n"
-    msg += "╔══════════════════════╗\n"
-    msg += f"║  🪙 Toss: {toss_winner.name} won  ║\n"
-    msg += f"║  👉 Decision: {decision.upper()} first  ║\n"
-    msg += "╚══════════════════════╝\n\n"
+    msg += "━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += f"  🪙 Toss: {toss_winner.name} won  \n"
+    msg += f"  👉 Decision: {decision.upper()} first  \n"
+    msg += "━━━━━━━━━━━━━━━━━━━━━\n\n"
     msg += f"🏏 <b>{match.super_over_batting_first.name}</b> — BATTING\n"
     msg += f"⚾ <b>{match.super_over_bowling_first.name}</b> — BOWLING\n\n"
     msg += "📜 <b>RULES:</b>\n"
@@ -9614,9 +9910,9 @@ async def end_super_over_innings(context: ContextTypes.DEFAULT_TYPE, group_id: i
     match.target = first_innings_score + 1
     
     msg = f"⚡〔 <b>SUPER OVER — HALF TIME</b> 〕⚡\n"
-    msg += "╔══════════════════════╗\n"
-    msg += f"║  🏏 {bat_team.name}: {bat_team.score}/{bat_team.wickets}  ║\n"
-    msg += "╚══════════════════════╝\n\n"
+    msg += "━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += f"  🏏 {bat_team.name}: {bat_team.score}/{bat_team.wickets}  \n"
+    msg += "━━━━━━━━━━━━━━━━━━━━━\n\n"
     msg += f"🎯 <b>{bowl_team.name}</b> needs <b>{match.target}</b> to win!\n\n"
     msg += "⏳ <i>2nd super over innings in 20 seconds...</i>"
     
@@ -9965,6 +10261,20 @@ def update_h2h_stats(match: Match):
             # Bowling vs opponent
             record["wickets_taken"] += p1.wickets
 
+    # 🔮 Save Magic Ball mode match stats
+    if getattr(match, "magic_ball_mode", False) or getattr(match, "game_mode", "") == "MAGICBALL":
+        all_mb_players = list(match.team_x.players) + list(match.team_y.players)
+        for p in all_mb_players:
+            uid = p.user_id
+            init_player_stats(uid)
+            mb = player_stats[uid].setdefault("magicball", {})
+            mb["matches"] = mb.get("matches", 0) + 1
+            is_win = winner and p in winner.players
+            mb["wins"] = mb.get("wins", 0) + (1 if is_win else 0)
+            mb["runs"] = mb.get("runs", 0) + p.runs
+            if p.runs > mb.get("high_score", 0):
+                mb["high_score"] = p.runs
+
     save_data()
 
 
@@ -10106,52 +10416,173 @@ async def save_match_to_history(match, winner_team: str):
     conn.commit()
     conn.close()
 
+async def generate_mystats_card(user_id: int, user_name: str, context) -> BytesIO | None:
+    """Generate a visual stats card image for /mystats using PIL"""
+    try:
+        # Get user's profile photo
+        profile_photo = None
+        try:
+            photos = await context.bot.get_user_profile_photos(user_id, limit=1)
+            if photos.photos:
+                photo_file = await photos.photos[0][-1].get_file()
+                photo_bytes = await photo_file.download_as_bytearray()
+                profile_photo = Image.open(BytesIO(photo_bytes)).convert("RGBA")
+        except:
+            pass
+
+        # Card dimensions
+        W, H = 600, 320
+        card = Image.new("RGBA", (W, H), (15, 20, 35, 255))  # dark navy bg
+        draw = ImageDraw.Draw(card)
+
+        # Gradient overlay
+        for y in range(H):
+            alpha = int(30 + (y / H) * 60)
+            draw.line([(0, y), (W, y)], fill=(0, 80, 160, alpha))
+
+        # Cricket pitch lines
+        for x in range(0, W, 40):
+            draw.line([(x, 0), (x, H)], fill=(255, 255, 255, 8))
+
+        # Accent bar top
+        draw.rectangle([(0, 0), (W, 5)], fill=(0, 180, 255, 255))
+        draw.rectangle([(0, H-5), (W, H)], fill=(0, 180, 255, 255))
+
+        # Profile photo circle (left side)
+        try:
+            if profile_photo:
+                pf = profile_photo.resize((100, 100))
+                # Circular mask
+                mask = Image.new("L", (100, 100), 0)
+                md = ImageDraw.Draw(mask)
+                md.ellipse([(0,0),(99,99)], fill=255)
+                pf.putalpha(mask)
+                card.paste(pf, (30, 110), pf)
+                # Circle border
+                draw.ellipse([(28, 108), (130, 210)], outline=(0, 180, 255, 255), width=3)
+            else:
+                draw.ellipse([(28, 108), (130, 210)], fill=(30, 60, 100, 255), outline=(0, 180, 255, 200), width=3)
+                draw.text((79, 159), "🏏", fill=(255,255,255,200), anchor="mm")
+        except:
+            pass
+
+        # Fonts (fallback to default)
+        try:
+            font_big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
+            font_med = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
+            font_sm = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
+        except:
+            font_big = font_med = font_sm = ImageFont.load_default()
+
+        # Name
+        draw.text((160, 30), "CRICOVERSE", fill=(0, 180, 255, 255), font=font_med)
+        draw.text((160, 58), user_name.upper(), fill=(255, 255, 255, 255), font=font_big)
+        draw.text((160, 86), f"🆔 {user_id}", fill=(150, 180, 220, 255), font=font_sm)
+
+        # Divider
+        draw.line([(160, 115), (570, 115)], fill=(0, 180, 255, 180), width=1)
+
+        # Fetch quick stats from DB
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT matches_played, matches_won, total_runs, highest_score, total_wickets FROM user_stats WHERE user_id=?", (user_id,))
+            row = c.fetchone() or (0,0,0,0,0)
+            conn.close()
+            matches, wins, runs, hs, wkts = row
+        except:
+            matches = wins = runs = hs = wkts = 0
+
+        win_rate = f"{round(wins/matches*100,1)}%" if matches > 0 else "0%"
+
+        # Stats grid
+        stats = [
+            ("MATCHES", str(matches)), ("WINS", str(wins)),
+            ("WIN%", win_rate), ("RUNS", str(runs)),
+            ("HS", str(hs)), ("WICKETS", str(wkts))
+        ]
+        x_start = 160
+        for i, (label, val) in enumerate(stats):
+            col = i % 3
+            row_n = i // 3
+            bx = x_start + col * 140
+            by = 130 + row_n * 75
+            draw.rectangle([(bx, by), (bx+128, by+60)], fill=(20, 40, 80, 200), outline=(0, 180, 255, 100), width=1)
+            draw.text((bx+64, by+20), val, fill=(255, 255, 255, 255), font=font_big, anchor="mt")
+            draw.text((bx+64, by+45), label, fill=(0, 180, 255, 255), font=font_sm, anchor="mt")
+
+        # Player name bottom left
+        draw.text((30, 230), user_name, fill=(200, 220, 255, 255), font=font_med)
+        draw.text((30, 255), "🏏 Cricket Profile", fill=(100, 140, 200, 200), font=font_sm)
+        draw.text((30, 280), "tap buttons below for details ›", fill=(80, 110, 160, 200), font=font_sm)
+
+        # Save to BytesIO
+        bio = BytesIO()
+        card.convert("RGB").save(bio, format="JPEG", quality=90)
+        bio.seek(0)
+        return bio
+    except Exception as e:
+        logger.error(f"Stats card generation error: {e}")
+        return None
+
+
 async def mystats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """🏏 Interactive cricket stats with Team/Solo separation"""
+    """🏏 Interactive cricket stats — per-mode with photo card"""
     query = update.callback_query
     user_id = update.effective_user.id
     user_name = update.effective_user.first_name
     
-    # Show main menu with buttons
     if query is None:
         # Initial command call
         keyboard = [
             [
-                InlineKeyboardButton("📊 Overall Stats", callback_data=f"mystats_overall_{user_id}"),
-                InlineKeyboardButton("👥 Team Stats", callback_data=f"mystats_team_{user_id}")
+                InlineKeyboardButton("📊 Overall", callback_data=f"mystats_overall_{user_id}"),
+                InlineKeyboardButton("👥 Team", callback_data=f"mystats_team_{user_id}")
             ],
             [
-                InlineKeyboardButton("🎮 Solo Stats", callback_data=f"mystats_solo_{user_id}"),
-                InlineKeyboardButton("🏆 Achievements", callback_data=f"mystats_achievements_{user_id}")
+                InlineKeyboardButton("⚔️ Solo", callback_data=f"mystats_solo_{user_id}"),
+                InlineKeyboardButton("🤖 AI", callback_data=f"mystats_ai_{user_id}")
+            ],
+            [
+                InlineKeyboardButton("🔮 Magic Ball", callback_data=f"mystats_magicball_{user_id}")
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        text = f"╔═══════════════════════╗\n"
-        text += f"    🏏 <b>{user_name}'s CRICKET PROFILE</b>\n"
-        text += f"╚═══════════════════════╝\n\n"
-        text += "📈 <b>Select a category to view detailed stats:</b>\n\n"
-        text += "📊 <b>Overall Stats</b> - Complete career statistics\n"
-        text += "👥 <b>Team Stats</b> - Team mode performance\n"
-        text += "🎮 <b>Solo Stats</b> - Solo mode achievements\n"
-        text += "🏆 <b>Achievements</b> - Milestones & records\n"
+        caption = f"━━━━━━━━━━━━━━━━━━━━━\n"
+        caption += f"  🏏  C R I C K E T  C A R D  \n"
+        caption += f"━━━━━━━━━━━━━━━━━━━━━\n"
+        caption += f"👤 <b>{user_name}</b>\n"
+        caption += f"━━━━━━━━━━━━━━━━━━━━━\n"
+        caption += "👇 <i>Select a mode to view your stats!</i>"
         
         try:
-            # Send with photo if available
-            stats_photo = MEDIA_ASSETS.get("stats") or MYSTATS_IMAGE_FILE_ID
-            if stats_photo and stats_photo != "YOUR_MYSTATS_IMAGE_FILE_ID_HERE":
+            # Generate stats card image
+            card_bio = await generate_mystats_card(user_id, user_name, context)
+            
+            if card_bio:
                 await update.message.reply_photo(
-                    photo=stats_photo,
-                    caption=text,
+                    photo=card_bio,
+                    caption=caption,
                     parse_mode=ParseMode.HTML,
                     reply_markup=reply_markup
                 )
             else:
-                await update.message.reply_text(
-                    text,
-                    parse_mode=ParseMode.HTML,
-                    reply_markup=reply_markup
-                )
+                # Fallback: try saved photo
+                stats_photo = MEDIA_ASSETS.get("stats") or MYSTATS_IMAGE_FILE_ID
+                if stats_photo and stats_photo != "YOUR_MYSTATS_IMAGE_FILE_ID_HERE":
+                    await update.message.reply_photo(
+                        photo=stats_photo,
+                        caption=caption,
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=reply_markup
+                    )
+                else:
+                    await update.message.reply_text(
+                        caption,
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=reply_markup
+                    )
         except Exception as e:
             logger.error(f"mystats send error: {e}")
             await update.message.reply_text("🏏 Error loading stats. Try again!")
@@ -10159,28 +10590,33 @@ async def mystats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
 
 async def mystats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle mystats button callbacks"""
+    """Handle mystats button callbacks — per-mode stats display"""
     query = update.callback_query
     await query.answer()
     
     data = query.data
     user_id = int(data.split("_")[-1])
     
-    # Security: Only user can view their own stats
+    # Security check
     if query.from_user.id != user_id:
-        await query.answer("❌ You can only view your own stats!", show_alert=True)
+        await query.answer("❌ These aren't your stats!", show_alert=True)
         return
     
     user_name = query.from_user.first_name
+
+    # Standard back button
+    back_button = InlineKeyboardButton("🔙 Back", callback_data=f"mystats_menu_{user_id}")
     
-    # Back button
-    back_button = InlineKeyboardButton("🔙 Back to Menu", callback_data=f"mystats_menu_{user_id}")
+    # ──────────────── SECTION SEPARATOR HELPER ────────────────
+    SEP = "━━━━━━━━━━━━━━━━━━━━━━━━"
+    SEP2 = "━━━━━━━━━━━━━━━━━━━━━"
     
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    
+    # ══════════════════════════════════════
+    #   OVERALL STATS
+    # ══════════════════════════════════════
     if "mystats_overall" in data:
-        # Overall Stats
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
         c.execute("""
             SELECT 
                 matches_played, matches_won, total_runs, highest_score,
@@ -10190,286 +10626,347 @@ async def mystats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             FROM user_stats
             WHERE user_id = ?
         """, (user_id,))
-        
         row = c.fetchone()
         conn.close()
         
         if not row or row[0] == 0:
-            text = "🏏 <b>No stats yet!</b>\n\nPlay some matches to build your cricket profile."
+            text = (
+                f"📊 <b>{user_name}'s OVERALL STATS</b>\n"
+                f"{SEP}\n"
+                "🏟️ <i>No matches played yet!</i>\n"
+                "Play some cricket to fill your profile. 🏏"
+            )
         else:
-            matches, won, runs, high_score, balls, wickets, sixes, fours, dots, best_bowl, ducks, fifties, hundreds = row
-            
-            avg = round(runs / matches, 2) if matches > 0 else 0
+            matches, won, runs, hs, balls, wickets, sixes, fours, dots, best_bowl, ducks, fifties, hundreds = row
+            avg = round(runs / max(matches-ducks, 1), 2)
             sr = round((runs / balls * 100), 2) if balls > 0 else 0
             win_rate = round((won / matches * 100), 1) if matches > 0 else 0
-            economy = round((runs / (balls / 6)), 2) if balls > 0 else 0
             
-            text = f"╔═══════════════════════╗\n"
-            text += f"    📊 <b>{user_name}'s OVERALL STATS</b>\n"
-            text += f"╚═══════════════════════╝\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "📈 <b>MATCH RECORD</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"🎮 Matches Played: <b>{matches}</b>\n"
-            text += f"🏆 Matches Won: <b>{won}</b>\n"
-            text += f"💔 Matches Lost: <b>{matches - won}</b>\n"
-            text += f"📊 Win Rate: <b>{win_rate}%</b>\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "🏏 <b>BATTING PERFORMANCE</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"🏃 Total Runs: <b>{runs}</b>\n"
-            text += f"⏱️ Balls Faced: <b>{balls}</b>\n"
-            text += f"📊 Average: <b>{avg}</b>\n"
-            text += f"⚡ Strike Rate: <b>{sr}</b>\n"
-            text += f"🎯 High Score: <b>{high_score}</b>\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "🎯 <b>MILESTONES</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"💯 Centuries: <b>{hundreds}</b>\n"
-            text += f"5️⃣0️⃣ Half-Centuries: <b>{fifties}</b>\n"
-            text += f"🦆 Ducks: <b>{ducks}</b>\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "💥 <b>BOUNDARIES</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"6️⃣ Sixes: <b>{sixes}</b>\n"
-            text += f"4️⃣ Fours: <b>{fours}</b>\n"
-            text += f"⚪ Dot Balls: <b>{dots}</b>\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "⚾ <b>BOWLING STATS</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"🎯 Total Wickets: <b>{wickets}</b>\n"
-            text += f"🏆 Best Bowling: <b>{best_bowl}</b>\n"
-            text += f"📊 Economy: <b>{economy}</b>\n"
+            text = f"📊 <b>{user_name}'s OVERALL STATS</b>\n"
+            text += f"{SEP}\n"
+            text += f"🎮 <b>Matches:</b>  {matches}\n"
+            text += f"🏆 <b>Wins:</b>  {won}  ┊  💔 <b>Losses:</b>  {matches-won}  ┊  📈 <b>Win Rate:</b>  {win_rate}%\n"
+            text += f"{SEP}\n"
+            text += f"🏏 <b>BATTING</b>\n"
+            text += f"├ 🏃 <b>Runs:</b>  {runs}\n"
+            text += f"├ 🎯 <b>Highest Score:</b>  {hs}\n"
+            text += f"├ ⚡ <b>Strike Rate:</b>  {sr}\n"
+            text += f"├ 📊 <b>Average:</b>  {avg}\n"
+            text += f"├ 🚀 <b>Sixes:</b>  {sixes}\n"
+            text += f"├ 🔥 <b>Fours:</b>  {fours}\n"
+            text += f"├ ⚫ <b>Dots:</b>  {dots}\n"
+            text += f"└ 🦆 <b>Ducks:</b>  {ducks}\n"
+            text += f"{SEP}\n"
+            text += f"🏆 <b>MILESTONES</b>\n"
+            text += f"├ 💯 <b>Centuries:</b>  {hundreds}\n"
+            text += f"└ 5️⃣0️⃣ <b>Fifties:</b>  {fifties}\n"
+            text += f"{SEP}\n"
+            text += f"⚾ <b>BOWLING</b>\n"
+            text += f"├ 🎯 <b>Wickets:</b>  {wickets}\n"
+            text += f"└ 🏅 <b>Best Figure:</b>  {best_bowl or 'N/A'}"
         
         keyboard = [[back_button]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
         try:
-            await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+            await query.edit_message_caption(caption=text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         except:
-            await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
-    
+            try:
+                await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+            except:
+                await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    # ══════════════════════════════════════
+    #   TEAM STATS
+    # ══════════════════════════════════════
     elif "mystats_team" in data:
-        # Team Stats
-        if user_id not in player_stats or "team" not in player_stats[user_id]:
-            text = "🏏 <b>No Team stats yet!</b>\n\nPlay team matches to see your stats here."
-        else:
-            team_stats = player_stats[user_id]["team"]
-            
-            matches = team_stats.get("matches", 0)
-            wins = team_stats.get("wins", 0)
-            runs = team_stats.get("runs", 0)
-            balls = team_stats.get("balls", 0)
-            wickets = team_stats.get("wickets", 0)
-            high_score = team_stats.get("high_score", 0)
-            sixes = team_stats.get("sixes", 0)
-            fours = team_stats.get("fours", 0)
-            
-            avg = round(runs / matches, 2) if matches > 0 else 0
-            sr = round((runs / balls * 100), 2) if balls > 0 else 0
-            win_rate = round((wins / matches * 100), 1) if matches > 0 else 0
-            
-            text = f"╔═══════════════════════╗\n"
-            text += f"    👥 <b>{user_name}'s TEAM STATS</b>\n"
-            text += f"╚═══════════════════════╝\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "📈 <b>TEAM MODE RECORD</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"🎮 Team Matches: <b>{matches}</b>\n"
-            text += f"🏆 Wins: <b>{wins}</b>\n"
-            text += f"📊 Win Rate: <b>{win_rate}%</b>\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "🏏 <b>BATTING IN TEAMS</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"🏃 Total Runs: <b>{runs}</b>\n"
-            text += f"⏱️ Balls Faced: <b>{balls}</b>\n"
-            text += f"📊 Average: <b>{avg}</b>\n"
-            text += f"⚡ Strike Rate: <b>{sr}</b>\n"
-            text += f"🎯 High Score: <b>{high_score}</b>\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "💥 <b>TEAM MODE BOUNDARIES</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"6️⃣ Sixes: <b>{sixes}</b>\n"
-            text += f"4️⃣ Fours: <b>{fours}</b>\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "⚾ <b>TEAM BOWLING</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"🎯 Wickets: <b>{wickets}</b>\n"
-        
-        conn.close()
-        keyboard = [[back_button]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        try:
-            await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
-        except:
-            await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
-    
-    elif "mystats_solo" in data:
-        # Solo Stats
-        if user_id not in player_stats or "solo" not in player_stats[user_id]:
-            text = "🏏 <b>No Solo stats yet!</b>\n\nPlay solo matches to see your stats here."
-        else:
-            solo_stats = player_stats[user_id]["solo"]
-            
-            matches = solo_stats.get("matches", 0)
-            wins = solo_stats.get("wins", 0)
-            runs = solo_stats.get("runs", 0)
-            balls = solo_stats.get("balls", 0)
-            high_score = solo_stats.get("high_score", 0)
-            sixes = solo_stats.get("sixes", 0)
-            fours = solo_stats.get("fours", 0)
-            
-            avg = round(runs / matches, 2) if matches > 0 else 0
-            sr = round((runs / balls * 100), 2) if balls > 0 else 0
-            win_rate = round((wins / matches * 100), 1) if matches > 0 else 0
-            
-            text = f"╔═══════════════════════╗\n"
-            text += f"    🎮 <b>{user_name}'s SOLO STATS</b>\n"
-            text += f"╚═══════════════════════╝\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "📈 <b>SOLO MODE RECORD</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"🎮 Solo Matches: <b>{matches}</b>\n"
-            text += f"🏆 Wins: <b>{wins}</b>\n"
-            text += f"💔 Losses: <b>{matches - wins}</b>\n"
-            text += f"📊 Win Rate: <b>{win_rate}%</b>\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "🏏 <b>SOLO BATTING</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"🏃 Total Runs: <b>{runs}</b>\n"
-            text += f"⏱️ Balls Faced: <b>{balls}</b>\n"
-            text += f"📊 Average: <b>{avg}</b>\n"
-            text += f"⚡ Strike Rate: <b>{sr}</b>\n"
-            text += f"🎯 High Score: <b>{high_score}</b>\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "💥 <b>SOLO BOUNDARIES</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"6️⃣ Sixes: <b>{sixes}</b>\n"
-            text += f"4️⃣ Fours: <b>{fours}</b>\n"
-        
-        conn.close()
-        keyboard = [[back_button]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        try:
-            await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
-        except:
-            await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
-    
-    elif "mystats_achievements" in data:
-        # Achievements
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
         c.execute("""
-            SELECT 
-                total_hundreds, total_fifties, total_ducks, total_sixes, 
-                total_fours, best_bowling, matches_played, matches_won
-            FROM user_stats
-            WHERE user_id = ?
+            SELECT
+                team_matches_played, team_matches_won,
+                team_total_runs, team_highest_score,
+                team_total_balls_faced, team_total_wickets,
+                team_total_sixes, team_total_fours,
+                team_total_hundreds, team_total_fifties, team_total_ducks,
+                team_best_bowling_wickets, team_best_bowling_runs,
+                team_total_dots, team_total_balls_bowled,
+                win_streak, hat_tricks, player_of_match_count,
+                five_wicket_hauls, times_not_out
+            FROM user_stats WHERE user_id = ?
         """, (user_id,))
-        
-        row = c.fetchone()
+        db_row = c.fetchone()
         conn.close()
-        
-        if not row:
-            text = "🏏 <b>No achievements yet!</b>\n\nPlay matches to unlock achievements."
+
+        if not db_row or db_row[0] == 0:
+            # Fallback to old columns
+            conn2 = sqlite3.connect(DB_PATH)
+            c2 = conn2.cursor()
+            c2.execute("""
+                SELECT matches_played, matches_won, total_runs, highest_score,
+                       total_balls_faced, total_wickets, total_sixes, total_fours,
+                       total_hundreds, total_fifties, total_ducks,
+                       best_bowling_wickets, best_bowling_runs, total_dots,
+                       total_balls_bowled, player_of_match_count, five_wicket_hauls
+                FROM user_stats WHERE user_id = ?
+            """, (user_id,))
+            old_row = c2.fetchone()
+            conn2.close()
+            if old_row and old_row[0] > 0:
+                matches, wins, runs, hs, balls_faced, wickets, sixes, fours, hundreds, fifties, ducks, best_w, best_r, dots, balls_bowled, mom, fifer = old_row
+                win_streak = hat_tricks = times_not_out = 0
+            else:
+                matches = wins = runs = hs = balls_faced = wickets = sixes = fours = 0
+                hundreds = fifties = ducks = best_w = best_r = dots = balls_bowled = mom = fifer = 0
+                win_streak = hat_tricks = times_not_out = 0
         else:
-            hundreds, fifties, ducks, sixes, fours, best_bowl, matches, wins = row
-            
-            text = f"╔═══════════════════════╗\n"
-            text += f"    🏆 <b>{user_name}'s ACHIEVEMENTS</b>\n"
-            text += f"╚═══════════════════════╝\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "🎯 <b>BATTING MILESTONES</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"💯 Centuries: <b>{hundreds}</b>\n"
-            text += f"5️⃣0️⃣ Half-Centuries: <b>{fifties}</b>\n"
-            text += f"🦆 Ducks: <b>{ducks}</b>\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "💥 <b>POWER HITTING</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"6️⃣ Total Sixes: <b>{sixes}</b>\n"
-            text += f"4️⃣ Total Fours: <b>{fours}</b>\n"
-            
-            # Power hitter badge
-            if sixes >= 100:
-                text += f"\n🔥 <b>POWER HITTER</b> Badge Unlocked!\n"
-            elif sixes >= 50:
-                text += f"\n💪 <b>BIG HITTER</b> Badge Unlocked!\n"
-            
-            text += "\n━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "⚾ <b>BOWLING RECORDS</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += f"🏆 Best Bowling: <b>{best_bowl}</b>\n\n"
-            
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            text += "🎖️ <b>OVERALL ACHIEVEMENTS</b>\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-            
-            # Badges based on matches
-            if matches >= 100:
-                text += "🏅 <b>VETERAN PLAYER</b> - 100+ Matches\n"
-            elif matches >= 50:
-                text += "🥈 <b>EXPERIENCED</b> - 50+ Matches\n"
-            elif matches >= 10:
-                text += "🥉 <b>ROOKIE</b> - 10+ Matches\n"
-            
-            # Win rate badges
-            win_rate = (wins / matches * 100) if matches > 0 else 0
-            if win_rate >= 70:
-                text += "👑 <b>CHAMPION</b> - 70%+ Win Rate\n"
-            elif win_rate >= 50:
-                text += "⭐ <b>WINNER</b> - 50%+ Win Rate\n"
-        
+            matches, wins, runs, hs, balls_faced, wickets, sixes, fours, hundreds, fifties, ducks, best_w, best_r, dots, balls_bowled, win_streak, hat_tricks, mom, fifer, times_not_out = db_row
+
+        if matches == 0:
+            text = (
+                f"👥 <b>{user_name}'s TEAM STATS</b>\n{SEP}\n"
+                "🏟️ <i>No team matches played yet!</i>\n"
+                "Join a team match to get started. 🏏"
+            )
+        else:
+            avg = round(runs / max(matches - ducks, 1), 2)
+            sr = round((runs / max(balls_faced, 1)) * 100, 2)
+            win_rate = round((wins / matches) * 100, 1)
+            _form_s = player_stats.get(user_id, {}).get("last_5_scores", [])
+            _form_bar = ""
+            for _sc in _form_s[-5:]:
+                _form_bar += "🟩" if _sc >= 50 else "🟡" if _sc >= 20 else "🔴" if _sc == 0 else "🟠"
+            _form_bar = _form_bar or "—"
+
+            text = f"👥 <b>{user_name}'s TEAM STATS</b>\n"
+            text += f"{SEP}\n"
+            text += f"🎮 <b>Matches:</b>  {matches}\n"
+            text += f"🏆 <b>Wins:</b>  {wins}  ┊  💔 <b>Losses:</b>  {matches-wins}  ┊  📈 <b>Win Rate:</b>  {win_rate}%\n"
+            text += f"🔥 <b>Win Streak:</b>  {win_streak}  ┊  🌟 <b>Man of Match:</b>  {mom}\n"
+            text += f"{SEP}\n"
+            text += f"🏏 <b>BATTING</b>\n"
+            text += f"├ 🏃 <b>Runs:</b>  {runs}\n"
+            text += f"├ 🎯 <b>Highest Score:</b>  {hs}\n"
+            text += f"├ ⚡ <b>Strike Rate:</b>  {sr}\n"
+            text += f"├ 📊 <b>Average:</b>  {avg}\n"
+            text += f"├ 🚀 <b>Sixes:</b>  {sixes}\n"
+            text += f"├ 🔥 <b>Fours:</b>  {fours}\n"
+            text += f"├ 💯 <b>Centuries:</b>  {hundreds}  ┊  5️⃣0️⃣ <b>Fifties:</b>  {fifties}\n"
+            text += f"└ 🦆 <b>Ducks:</b>  {ducks}  ┊  🏅 <b>Not Out:</b>  {times_not_out}\n"
+            text += f"{SEP}\n"
+            text += f"⚾ <b>BOWLING</b>\n"
+            text += f"├ 🎯 <b>Wickets:</b>  {wickets}\n"
+            text += f"├ 🎩 <b>Hat-tricks:</b>  {hat_tricks}\n"
+            text += f"├ 5⃣ <b>Five-Wicket Hauls:</b>  {fifer}\n"
+            text += f"└ 🏅 <b>Best Figure:</b>  {best_w}/{best_r}\n"
+            text += f"{SEP}\n"
+            text += f"📈 <b>RECENT FORM</b> (last 5)\n"
+            text += f"└ {_form_bar}\n"
+            text += f"🟩 50+  🟡 20+  🟠 <20  🔴 0"
+
         keyboard = [[back_button]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
         try:
-            await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+            await query.edit_message_caption(caption=text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         except:
-            await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
-    
+            try:
+                await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+            except:
+                await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    # ══════════════════════════════════════
+    #   SOLO STATS
+    # ══════════════════════════════════════
+    elif "mystats_solo" in data:
+        if user_id not in player_stats or "solo" not in player_stats.get(user_id, {}):
+            text = (
+                f"⚔️ <b>{user_name}'s SOLO STATS</b>\n{SEP}\n"
+                "🏟️ <i>No solo matches played yet!</i>\n"
+                "Challenge someone 1v1 to get started. ⚔️"
+            )
+        else:
+            solo = player_stats[user_id]["solo"]
+            matches = solo.get("matches", 0)
+            wins = solo.get("wins", 0)
+            runs = solo.get("runs", 0)
+            balls = solo.get("balls", 0)
+            hs = solo.get("high_score", 0)
+            sixes = solo.get("sixes", 0)
+            fours = solo.get("fours", 0)
+            
+            avg = round(runs / max(matches, 1), 2)
+            sr = round((runs / max(balls, 1)) * 100, 2)
+            win_rate = round((wins / max(matches, 1)) * 100, 1)
+
+            text = f"⚔️ <b>{user_name}'s SOLO STATS</b>\n"
+            text += f"{SEP}\n"
+            text += f"🎮 <b>Matches:</b>  {matches}\n"
+            text += f"🏆 <b>Wins:</b>  {wins}  ┊  💔 <b>Losses:</b>  {matches-wins}  ┊  📈 <b>Win Rate:</b>  {win_rate}%\n"
+            text += f"{SEP}\n"
+            text += f"🏏 <b>BATTING</b>\n"
+            text += f"├ 🏃 <b>Runs:</b>  {runs}\n"
+            text += f"├ 🎯 <b>Highest Score:</b>  {hs}\n"
+            text += f"├ ⚡ <b>Strike Rate:</b>  {sr}\n"
+            text += f"├ 📊 <b>Average:</b>  {avg}\n"
+            text += f"├ 🚀 <b>Sixes:</b>  {sixes}\n"
+            text += f"└ 🔥 <b>Fours:</b>  {fours}"
+
+        keyword = [[back_button]]
+        try:
+            await query.edit_message_caption(caption=text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyword))
+        except:
+            try:
+                await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyword))
+            except:
+                await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyword))
+
+    # ══════════════════════════════════════
+    #   AI STATS
+    # ══════════════════════════════════════
+    elif "mystats_ai" in data:
+        try:
+            ai_conn = sqlite3.connect(DB_PATH)
+            ai_c = ai_conn.cursor()
+            ai_c.execute("""
+                SELECT total_matches, wins, losses,
+                       easy_matches, medium_matches, hard_matches,
+                       easy_wins, medium_wins, hard_wins,
+                       highest_score, total_runs, total_sixes, total_fours
+                FROM ai_stats WHERE user_id = ?
+            """, (user_id,))
+            ai_row = ai_c.fetchone()
+            ai_conn.close()
+        except:
+            ai_row = None
+        
+        if not ai_row or ai_row[0] == 0:
+            text = (
+                f"🤖 <b>{user_name}'s AI STATS</b>\n{SEP}\n"
+                "🏟️ <i>No AI matches played yet!</i>\n"
+                "Use /aistart to challenge the machine! 🤖"
+            )
+        else:
+            (total, wins, losses, easy_m, med_m, hard_m,
+             easy_w, med_w, hard_w, hs, total_runs, sixes, fours) = ai_row
+            win_rate = round((wins / total * 100), 1) if total > 0 else 0
+            hard_wr = round((hard_w / hard_m * 100), 1) if hard_m > 0 else 0
+            
+            # Badge
+            if hard_m >= 5 and hard_wr >= 60:
+                badge = "👑 <b>AI CONQUEROR</b>"
+            elif wins >= 10:
+                badge = "🏅 <b>AI VETERAN</b>"
+            elif wins >= 5:
+                badge = "⭐ <b>AI FIGHTER</b>"
+            elif wins >= 1:
+                badge = "🥉 <b>AI BEATER</b>"
+            else:
+                badge = "🤖 <i>Keep grinding!</i>"
+
+            text = f"🤖 <b>{user_name}'s AI STATS</b>\n"
+            text += f"{SEP}\n"
+            text += f"🎮 <b>Matches:</b>  {total}\n"
+            text += f"🏆 <b>Wins:</b>  {wins}  ┊  💔 <b>Losses:</b>  {losses}  ┊  📈 <b>Win Rate:</b>  {win_rate}%\n"
+            text += f"{SEP}\n"
+            text += f"🎯 <b>DIFFICULTY RECORD</b>\n"
+            text += f"├ 😊 <b>Easy:</b>    {easy_w}W / {easy_m} played\n"
+            text += f"├ 😐 <b>Medium:</b>  {med_w}W / {med_m} played\n"
+            text += f"└ 😈 <b>Hard:</b>   {hard_w}W / {hard_m} played"
+            if hard_m > 0:
+                text += f"  ({hard_wr}%)"
+            text += f"\n{SEP}\n"
+            text += f"🏏 <b>BATTING VS AI</b>\n"
+            text += f"├ 🏃 <b>Runs:</b>  {total_runs}\n"
+            text += f"├ 🎯 <b>Highest Score:</b>  {hs}\n"
+            text += f"├ 🚀 <b>Sixes:</b>  {sixes}\n"
+            text += f"└ 🔥 <b>Fours:</b>  {fours}\n"
+            text += f"{SEP}\n"
+            text += f"🎖️ <b>BADGE:</b>  {badge}"
+
+        keyboard = [[back_button]]
+        try:
+            await query.edit_message_caption(caption=text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+        except:
+            try:
+                await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+            except:
+                await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    # ══════════════════════════════════════
+    #   MAGIC BALL STATS
+    # ══════════════════════════════════════
+    elif "mystats_magicball" in data:
+        mb_stats = player_stats.get(user_id, {}).get("magicball", {})
+        matches = mb_stats.get("matches", 0)
+        wins = mb_stats.get("wins", 0)
+        runs = mb_stats.get("runs", 0)
+        hs = mb_stats.get("high_score", 0)
+        balls_triggered = mb_stats.get("magic_balls_triggered", 0)
+        best_ball = mb_stats.get("best_magic_ball", "None")
+        
+        if matches == 0:
+            text = (
+                f"🔮 <b>{user_name}'s MAGIC BALL STATS</b>\n{SEP}\n"
+                "✨ <i>No Magic Ball matches yet!</i>\n"
+                "Use /game → 🔮 Magic Ball Mode to play! ✨"
+            )
+        else:
+            win_rate = round((wins / max(matches, 1)) * 100, 1)
+            text = f"🔮 <b>{user_name}'s MAGIC BALL STATS</b>\n"
+            text += f"{SEP}\n"
+            text += f"🎮 <b>Matches:</b>  {matches}\n"
+            text += f"🏆 <b>Wins:</b>  {wins}  ┊  💔 <b>Losses:</b>  {matches-wins}  ┊  📈 <b>Win Rate:</b>  {win_rate}%\n"
+            text += f"{SEP}\n"
+            text += f"🏏 <b>BATTING</b>\n"
+            text += f"├ 🏃 <b>Runs:</b>  {runs}\n"
+            text += f"└ 🎯 <b>Highest Score:</b>  {hs}\n"
+            text += f"{SEP}\n"
+            text += f"✨ <b>MAGIC BALL STATS</b>\n"
+            text += f"├ ⚡ <b>Balls Triggered:</b>  {balls_triggered}\n"
+            text += f"└ 🏅 <b>Favourite Ball:</b>  {best_ball}"
+
+        keyboard = [[back_button]]
+        try:
+            await query.edit_message_caption(caption=text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+        except:
+            try:
+                await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+            except:
+                await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    # ══════════════════════════════════════
+    #   BACK TO MAIN MENU
+    # ══════════════════════════════════════
     elif "mystats_menu" in data:
-        # Back to main menu
         keyboard = [
             [
-                InlineKeyboardButton("📊 Overall Stats", callback_data=f"mystats_overall_{user_id}"),
-                InlineKeyboardButton("👥 Team Stats", callback_data=f"mystats_team_{user_id}")
+                InlineKeyboardButton("📊 Overall", callback_data=f"mystats_overall_{user_id}"),
+                InlineKeyboardButton("👥 Team", callback_data=f"mystats_team_{user_id}")
             ],
             [
-                InlineKeyboardButton("🎮 Solo Stats", callback_data=f"mystats_solo_{user_id}"),
-                InlineKeyboardButton("🏆 Achievements", callback_data=f"mystats_achievements_{user_id}")
+                InlineKeyboardButton("⚔️ Solo", callback_data=f"mystats_solo_{user_id}"),
+                InlineKeyboardButton("🤖 AI", callback_data=f"mystats_ai_{user_id}")
+            ],
+            [
+                InlineKeyboardButton("🔮 Magic Ball", callback_data=f"mystats_magicball_{user_id}")
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        text = f"╔═══════════════════════╗\n"
-        text += f"    🏏 <b>{user_name}'s CRICKET PROFILE</b>\n"
-        text += f"╚═══════════════════════╝\n\n"
-        text += "📈 <b>Select a category to view detailed stats:</b>\n\n"
-        text += "📊 <b>Overall Stats</b> - Complete career statistics\n"
-        text += "👥 <b>Team Stats</b> - Team mode performance\n"
-        text += "🎮 <b>Solo Stats</b> - Solo mode achievements\n"
-        text += "🏆 <b>Achievements</b> - Milestones & records\n"
+        text = f"━━━━━━━━━━━━━━━━━━━━━\n"
+        text += f"  🏏  C R I C K E T  C A R D  \n"
+        text += f"━━━━━━━━━━━━━━━━━━━━━\n"
+        text += f"👤 <b>{user_name}</b>\n"
+        text += f"━━━━━━━━━━━━━━━━━━━━━\n"
+        text += f"📊 <b>Overall</b> · 👥 <b>Team</b> · ⚔️ <b>Solo</b>\n"
+        text += f"🤖 <b>AI</b> · 🔮 <b>Magic Ball</b>\n"
+        text += f"━━━━━━━━━━━━━━━━━━━━━\n"
+        text += "👇 <i>Select a mode to view your stats!</i>"
         
         try:
-            await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+            await query.edit_message_caption(caption=text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
         except:
-            await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
-
+            try:
+                await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+            except:
+                await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
 async def groupapprove_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """🔐 Approve Tournament Mode (Owner / Second Approver)"""
     user = update.effective_user
@@ -10607,9 +11104,9 @@ async def start_auction_live_callback(update: Update, context: ContextTypes.DEFA
     await query.edit_message_text(
         text=(
             "🎤〔 <b>AUCTION IS NOW LIVE!</b> 〕🎤\n\n"
-            "╔══════════════════════╗\n"
-            "║  🔨 BIDDING OPEN  ║\n"
-            "╚══════════════════════╝\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+            "  🔨 BIDDING OPEN  \n"
+            "━━━━━━━━━━━━━━━━━━━━━\n\n"
             "🏃‍♂️ First player coming up any moment!\n"
             "⌨️ Use <code>/bid [amount]</code> to place bids!\n\n"
             "🍀 <i>May the best team win!</i>"
@@ -11801,9 +12298,9 @@ async def bid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = (
             f"🔥〔 <b>NEW BID!</b> 〕🔥\n\n"
             f"👤 {p_tag}\n\n"
-            f"╔══════════════════════╗\n"
-            f"║  💰 {amount} coins  ║\n"
-            f"╚══════════════════════╝\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  💰 {amount} coins  \n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"🚩 Team: <b>{team_name}</b>\n"
             f"👤 Bidder: {bidder_tag}\n"
             f"⏱ Timer reset: <b>30 seconds</b>\n\n"
@@ -11869,9 +12366,9 @@ async def bid_timer(context: ContextTypes.DEFAULT_TYPE, chat_id: int, auction: A
                 
                 msg = (
                     f"🔨〔 <b>SOLD!</b> 〕🔨\n\n"
-                    f"╔══════════════════════╗\n"
-                    f"║  👤 {player_tag}  ║\n"
-                    f"╚══════════════════════╝\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"  👤 {player_tag}  \n"
+                    f"━━━━━━━━━━━━━━━━━━━━━\n\n"
                     f"🚩 Team: <b>{auction.current_highest_bidder}</b>\n"
                     f"💰 Final Price: <b>{auction.current_highest_bid} coins</b>\n\n"
                     f"💼 Purse Remaining: <b>{team.purse_remaining}</b>\n"
@@ -11900,9 +12397,9 @@ async def bid_timer(context: ContextTypes.DEFAULT_TYPE, chat_id: int, auction: A
                 
                 msg = (
                     f"😔〔 <b>UNSOLD!</b> 〕😔\n\n"
-                    f"╔══════════════════════╗\n"
-                    f"║  👤 {player_tag}  ║\n"
-                    f"╚══════════════════════╝\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"  👤 {player_tag}  \n"
+                    f"━━━━━━━━━━━━━━━━━━━━━\n\n"
                     f"💸 Base Price: <b>{auction.current_base_price} coins</b>\n"
                     f"📦 No bids placed — player goes unsold.\n\n"
                     f"📊 Total Unsold: <b>{len(auction.unsold_players)}</b>\n\n"
@@ -12693,29 +13190,59 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def botstats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """🏏 Enhanced bot statistics with group info"""
     start_time = time.time()
-    msg = await update.message.reply_text("🏏 Fetching stats...")
+    msg = await update.message.reply_text("⏳ <b>Fetching stats...</b>", parse_mode=ParseMode.HTML)
     ping_ms = round((time.time() - start_time) * 1000, 2)
     
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
-    # User stats
+    # User stats from DB
     c.execute('SELECT COUNT(DISTINCT user_id) FROM user_stats')
-    total_users = c.fetchone()[0]
+    db_users = c.fetchone()[0] or 0
     c.execute('SELECT SUM(matches_played) FROM user_stats')
-    total_matches = c.fetchone()[0] or 0
+    db_matches = c.fetchone()[0] or 0
     c.execute('SELECT SUM(total_runs) FROM user_stats')
-    total_runs = c.fetchone()[0] or 0
+    db_runs = c.fetchone()[0] or 0
     c.execute('SELECT SUM(total_wickets) FROM user_stats')
-    total_wickets = c.fetchone()[0] or 0
+    db_wickets = c.fetchone()[0] or 0
     c.execute('SELECT SUM(total_sixes) FROM user_stats')
-    total_sixes = c.fetchone()[0] or 0
+    db_sixes = c.fetchone()[0] or 0
     c.execute('SELECT SUM(total_fours) FROM user_stats')
-    total_fours = c.fetchone()[0] or 0
+    db_fours = c.fetchone()[0] or 0
+    
+    # Also check player_stats in-memory (some data may only be there)
+    mem_users = len(player_stats)
+    mem_runs = sum(
+        ps.get("total_runs", 0) if isinstance(ps, dict) and "total_runs" in ps
+        else (ps.get("team", {}).get("runs", 0) + ps.get("solo", {}).get("runs", 0))
+        if isinstance(ps, dict) else 0
+        for ps in player_stats.values()
+    )
+    
+    # Use whichever has more data
+    total_users = max(db_users, mem_users)
+    total_matches = db_matches
+    total_runs = db_runs if db_runs > 0 else mem_runs
+    total_wickets = db_wickets
+    total_sixes = db_sixes
+    total_fours = db_fours
     
     # Group stats
-    c.execute('SELECT COUNT(*) FROM groups')
-    total_groups = c.fetchone()[0] or 0
+    try:
+        c.execute('SELECT COUNT(*) FROM groups')
+        total_groups = c.fetchone()[0] or 0
+    except:
+        total_groups = len(registered_groups)
+    
+    # AI match stats
+    try:
+        c.execute('SELECT COUNT(*), SUM(total_matches), SUM(wins) FROM ai_stats')
+        ai_row = c.fetchone()
+        ai_players = ai_row[0] or 0
+        ai_total = ai_row[1] or 0
+        ai_wins = ai_row[2] or 0
+    except:
+        ai_players = ai_total = ai_wins = 0
     
     conn.close()
     
@@ -12725,7 +13252,7 @@ async def botstats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Banned groups
     total_banned = len(banned_groups)
-    active_groups = total_groups - total_banned
+    active_groups = max(0, total_groups - total_banned)
     
     # System stats
     cpu = memory = disk = 0
@@ -12737,52 +13264,24 @@ async def botstats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
     
-    # Calculate uptime (if you want to add this later)
-    # uptime_seconds = time.time() - bot_start_time
-    # uptime_str = str(timedelta(seconds=int(uptime_seconds)))
-    
-    text = "╔═══════════════════════╗\n"
-    text += "    🏏 <b>CRICOVERSE BOT STATS</b>\n"
-    text += "╚═══════════════════════╝\n\n"
-    
+    text = "🏏 <b>CRICOVERSE — BOT STATS</b>\n"
     text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += "📡 <b>PERFORMANCE</b>\n"
+    text += f"⚡ Ping: <b>{ping_ms}ms</b>  ┊  💻 CPU: <b>{cpu}%</b>  ┊  🧠 RAM: <b>{memory}%</b>\n"
     text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += f"⚡ Ping: <b>{ping_ms}ms</b>\n"
-    text += f"💻 CPU Usage: <b>{cpu}%</b>\n"
-    text += f"🧠 Memory: <b>{memory}%</b>\n"
-    text += f"💾 Disk: <b>{disk}%</b>\n\n"
-    
+    text += "👥 <b>USERS & GROUPS</b>\n"
+    text += f"👤 Total Users: <b>{total_users:,}</b>  ┊  🏘️ Groups: <b>{total_groups}</b>  ┊  🚫 Banned: <b>{total_banned}</b>\n"
     text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += "👥 <b>USER STATISTICS</b>\n"
+    text += "🏏 <b>CRICKET STATS</b>\n"
+    text += f"🎮 Matches: <b>{total_matches:,}</b>  ┊  🏃 Runs: <b>{total_runs:,}</b>  ┊  ⚾ Wickets: <b>{total_wickets:,}</b>\n"
+    text += f"🚀 Sixes: <b>{total_sixes:,}</b>  ┊  🔥 Fours: <b>{total_fours:,}</b>\n"
     text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += f"📊 Total Users: <b>{total_users:,}</b>\n"
-    text += f"🎮 Active Players: <b>{active_match_count}</b>\n\n"
-    
+    text += "🤖 <b>AI MODE</b>\n"
+    text += f"👾 Players: <b>{ai_players}</b>  ┊  🎮 Matches: <b>{ai_total}</b>  ┊  🏆 User Wins: <b>{ai_wins}</b>\n"
     text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += "🏘️ <b>GROUP STATISTICS</b>\n"
+    text += "🔴 <b>LIVE NOW</b>\n"
+    text += f"🏏 Active Matches: <b>{active_match_count}</b>  ┊  🎪 Auctions: <b>{active_auction_count}</b>\n"
     text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += f"📍 Total Groups: <b>{total_groups}</b>\n"
-    text += f"✅ Active Groups: <b>{active_groups}</b>\n"
-    text += f"🚫 Banned Groups: <b>{total_banned}</b>\n\n"
-    
-    text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += "🏏 <b>CRICKET STATISTICS</b>\n"
-    text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += f"🎮 Total Matches: <b>{total_matches:,}</b>\n"
-    text += f"🏃 Total Runs: <b>{total_runs:,}</b>\n"
-    text += f"⚾ Total Wickets: <b>{total_wickets:,}</b>\n"
-    text += f"6️⃣ Total Sixes: <b>{total_sixes:,}</b>\n"
-    text += f"4️⃣ Total Fours: <b>{total_fours:,}</b>\n\n"
-    
-    text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += "🎯 <b>LIVE ACTIVITY</b>\n"
-    text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += f"🏏 Live Matches: <b>{active_match_count}</b>\n"
-    text += f"🎪 Live Auctions: <b>{active_auction_count}</b>\n\n"
-    
-    text += "━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += "⚡ <b>Status:</b> All systems operational ✅\n"
+    text += "✅ <b>All systems operational</b>"
     
     await msg.edit_text(text, parse_mode=ParseMode.HTML)
 async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -12983,7 +13482,7 @@ async def auto_backup_job(context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Auto backup failed: {e}")
 
 async def restore_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """🔄 Enhanced Restore Command with Validation and Preview"""
+    """🔄 Direct Restore Command - No Confirmation Required"""
     user = update.effective_user
     
     # Security: Only owner can restore
@@ -12997,11 +13496,10 @@ async def restore_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📋 <b>How to Restore Database</b>\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n\n"
             "1️⃣ Upload or forward the backup .db file\n"
-            "2️⃣ Reply to that file with <code>/restore</code>\n"
-            "3️⃣ Confirm the restoration\n\n"
+            "2️⃣ Reply to that file with <code>/restore</code>\n\n"
             "⚠️ <b>Important:</b>\n"
             "• All active matches will be ended\n"
-            "• Current data will be replaced\n"
+            "• Current data will be replaced immediately\n"
             "• Only .db or .sqlite files accepted\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━"
         )
@@ -13020,127 +13518,71 @@ async def restore_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    # Check for active matches
-    if active_matches:
-        active_count = len(active_matches)
-        await update.message.reply_text(
-            f"⚠️ <b>Cannot Restore!</b>\n\n"
-            f"🎮 <b>{active_count}</b> active match(es) detected.\n\n"
-            f"Please end all matches first using:\n"
-            f"• /endmatch (in each group)\n"
-            f"• /resetmatch (owner only)\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━",
-            parse_mode=ParseMode.HTML
-        )
-        return
-    
-    # Check for active auctions
-    if active_auctions:
-        auction_count = len(active_auctions)
-        await update.message.reply_text(
-            f"⚠️ <b>Cannot Restore!</b>\n\n"
-            f"🎪 <b>{auction_count}</b> active auction(s) detected.\n\n"
-            f"Please end all auctions first using /endauction\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━",
-            parse_mode=ParseMode.HTML
-        )
-        return
-    
-    status = await update.message.reply_text("⏳ <b>Validating backup file...</b>", parse_mode=ParseMode.HTML)
+    status = await update.message.reply_text("⏳ <b>Restoring database...</b>", parse_mode=ParseMode.HTML)
+    temp_path = f"temp_restore_{int(time.time())}.db"
 
     try:
-        # Download and validate file
+        # Download file
         new_file = await doc.get_file()
-        temp_path = f"temp_restore_{int(time.time())}.db"
         await new_file.download_to_drive(temp_path)
         
         # Validate database file
         try:
             conn = sqlite3.connect(temp_path)
             c = conn.cursor()
-            
-            # Check if it's a valid database
             c.execute("SELECT name FROM sqlite_master WHERE type='table'")
             tables = [row[0] for row in c.fetchall()]
             
             if not tables:
                 os.remove(temp_path)
                 await status.edit_text(
-                    "❌ <b>Invalid Database!</b>\n\n"
-                    "The file appears to be empty or corrupted.",
+                    "❌ <b>Invalid Database!</b>\n\nThe file appears to be empty or corrupted.",
                     parse_mode=ParseMode.HTML
                 )
                 return
-            
-            # Get database statistics
-            stats = {}
-            try:
-                c.execute('SELECT COUNT(DISTINCT user_id) FROM user_stats')
-                stats['users'] = c.fetchone()[0] or 0
-            except:
-                stats['users'] = 0
-            
-            try:
-                c.execute('SELECT SUM(matches_played) FROM user_stats')
-                stats['matches'] = c.fetchone()[0] or 0
-            except:
-                stats['matches'] = 0
-            
-            try:
-                c.execute('SELECT COUNT(*) FROM groups')
-                stats['groups'] = c.fetchone()[0] or 0
-            except:
-                stats['groups'] = 0
-            
             conn.close()
-            
-            # Show preview and ask for confirmation
-            file_size = os.path.getsize(temp_path)
-            size_mb = round(file_size / (1024 * 1024), 2)
-            
-            preview = (
-                f"📋 <b>Backup File Preview</b>\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                f"📝 <b>File:</b> <code>{doc.file_name}</code>\n"
-                f"📊 <b>Size:</b> {size_mb} MB\n"
-                f"📅 <b>Tables Found:</b> {len(tables)}\n\n"
-                f"<b>Data Summary:</b>\n"
-                f"👥 Users: <b>{stats['users']}</b>\n"
-                f"🏏 Matches: <b>{stats['matches']}</b>\n"
-                f"🏘️ Groups: <b>{stats['groups']}</b>\n\n"
-                f"⚠️ <b>Warning:</b>\n"
-                f"• Current data will be replaced\n"
-                f"• This action cannot be undone\n"
-                f"• Create a backup before proceeding\n\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"Reply with <code>CONFIRM</code> to proceed\n"
-                f"or <code>CANCEL</code> to abort"
-            )
-            
-            # Store temp file path in context
-            context.user_data['temp_restore_file'] = temp_path
-            context.user_data['restore_confirmed'] = False
-            
-            await status.edit_text(preview, parse_mode=ParseMode.HTML)
-            
         except sqlite3.Error as e:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
             await status.edit_text(
-                f"❌ <b>Database Error!</b>\n\n"
-                f"The file is corrupted or not a valid SQLite database.\n\n"
-                f"Error: <code>{str(e)}</code>",
+                f"❌ <b>Invalid Database!</b>\n\nCorrupted or not a valid SQLite file.\n\nError: <code>{str(e)}</code>",
                 parse_mode=ParseMode.HTML
             )
             return
         
+        # Backup current database before restore
+        safety_backup = f"pre_restore_backup_{int(time.time())}.db"
+        if os.path.exists(DB_FILE):
+            shutil.copy(DB_FILE, safety_backup)
+        
+        # Replace database
+        shutil.move(temp_path, DB_FILE)
+        
+        # Clear and reload data
+        global user_data, match_history, player_stats, achievements, registered_groups
+        user_data = {}
+        match_history = []
+        player_stats = {}
+        achievements = {}
+        registered_groups = {}
+        
+        load_data()
+        
+        await status.edit_text(
+            f"✅ <b>Restore Complete!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"🔄 Database restored from <code>{doc.file_name}</code>\n"
+            f"💾 Safety backup: <code>{safety_backup}</code>\n\n"
+            f"⚡ All data reloaded successfully.",
+            parse_mode=ParseMode.HTML
+        )
+        
     except Exception as e:
-        logger.error(f"Restore validation failed: {e}")
+        logger.error(f"Restore failed: {e}")
         if os.path.exists(temp_path):
             os.remove(temp_path)
         await status.edit_text(
-            f"❌ <b>Restore Failed!</b>\n\n"
-            f"Error: <code>{str(e)}</code>",
+            f"❌ <b>Restore Failed!</b>\n\nError: <code>{str(e)}</code>",
             parse_mode=ParseMode.HTML
         )
 
@@ -14049,6 +14491,12 @@ async def handle_dm_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Check if AI is batting in first innings (user is bowling)
         if match.get("ai_batting_first") and match["innings"] == 1:
+            # Track bowling history for god-mode prediction
+            if "user_bowl_history" not in match:
+                match["user_bowl_history"] = []
+            match["user_bowl_history"].append(num)
+            if len(match["user_bowl_history"]) > 10:
+                match["user_bowl_history"].pop(0)
             # User is bowling to AI in first innings
             await ai_bat_ball(context, user.id, num)
             return
@@ -14064,6 +14512,13 @@ async def handle_dm_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 match["user_spam_history"] = []
             
             match["user_spam_history"].append(num)
+            
+            # Track for god-mode AI prediction
+            if "user_bat_history" not in match:
+                match["user_bat_history"] = []
+            match["user_bat_history"].append(num)
+            if len(match["user_bat_history"]) > 10:
+                match["user_bat_history"].pop(0)
             
             # Check last 3 numbers for spam
             is_spam = False
@@ -14290,6 +14745,13 @@ async def handle_dm_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 match["user_spam_history"] = []
             
             match["user_spam_history"].append(num)
+            
+            # Track for god-mode AI prediction
+            if "user_bowl_history" not in match:
+                match["user_bowl_history"] = []
+            match["user_bowl_history"].append(num)
+            if len(match["user_bowl_history"]) > 10:
+                match["user_bowl_history"].pop(0)
             
             # Check last 3 numbers for spam
             is_spam = False
@@ -14634,10 +15096,8 @@ async def momentum_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🏏 Not enough data yet! Play at least 1 over.")
         return
     
-    text = "╔═══════════════════════╗\n"
-    text += "    ⚡ <b>MOMENTUM METER</b>\n"
-    text += "╚═══════════════════════╝\n\n"
-    
+    text = "⚡ <b>MOMENTUM METER</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━\n\n"
     # Get last 12 balls (2 overs)
     recent = match.ball_by_ball_log[-12:] if len(match.ball_by_ball_log) >= 12 else match.ball_by_ball_log
     
@@ -14696,10 +15156,16 @@ async def momentum_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"(4s: {team_x_boundaries})\n"
     text += f"   ⚫ Dots: {team_x_dots} | 🔴 Wickets: {team_x_wickets}\n"
     
-    # Momentum bar for Team X
-    fire_count_x = min(team_x_boundaries, 10)
-    text += f"   🔥 {'█' * fire_count_x}{'░' * (10 - fire_count_x)}\n\n"
-    
+    # Emoji momentum bar Team X
+    _mx = team_x_runs + team_x_boundaries*3 - team_x_wickets*15 - team_x_dots
+    _px = max(0, min(10, 5 + round(_mx/5)))
+    _bx = ""
+    for _i in range(10):
+        if _i < _px:
+            _bx += ("🟥" if _px>=8 else "🟧" if _px>=5 else "🟩")
+        else:
+            _bx += "⬜"
+    text += f"   {_bx}\n\n"
     # Team Y Stats
     text += f"🔴 <b>{match.team_y.name}</b>\n"
     text += f"   📈 Runs: <b>{team_y_runs}</b>\n"
@@ -14710,12 +15176,17 @@ async def momentum_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"(4s: {team_y_boundaries})\n"
     text += f"   ⚫ Dots: {team_y_dots} | 🔴 Wickets: {team_y_wickets}\n"
     
-    # Momentum bar for Team Y
-    fire_count_y = min(team_y_boundaries, 10)
-    text += f"   🔥 {'█' * fire_count_y}{'░' * (10 - fire_count_y)}\n\n"
-    
+    # Emoji momentum bar Team Y
+    _my = team_y_runs + team_y_boundaries*3 - team_y_wickets*15 - team_y_dots
+    _py = max(0, min(10, 5 + round(_my/5)))
+    _by = ""
+    for _i in range(10):
+        if _i < _py:
+            _by += ("🟥" if _py>=8 else "🟧" if _py>=5 else "🟩")
+        else:
+            _by += "⬜"
+    text += f"   {_by}\n\n"
     text += "━━━━━━━━━━━━━━━━━━━━━━\n"
-    
     # Calculate momentum score
     team_x_momentum = team_x_runs + (team_x_boundaries * 3) + (team_x_sixes * 2) - (team_x_wickets * 15) - (team_x_dots * 1)
     team_y_momentum = team_y_runs + (team_y_boundaries * 3) + (team_y_sixes * 2) - (team_y_wickets * 15) - (team_y_dots * 1)
@@ -14737,12 +15208,24 @@ async def momentum_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"⚖️ <b>Perfectly balanced!</b> ⚔️\n"
         text += f"   <i>Momentum Score: {team_x_momentum} vs {team_y_momentum}</i>"
     
+    # Last 6 balls
+    _l6 = match.ball_by_ball_log[-6:] if len(match.ball_by_ball_log) >= 6 else match.ball_by_ball_log
+    _l6t = ""
+    for _b in _l6:
+        _r = _b.get("runs",0); _w = _b.get("is_wicket",False) or _b.get("wicket",False)
+        if _w: _l6t += "❌"
+        elif _b.get("wide"): _l6t += "〰️"
+        elif _r == 6: _l6t += "🚀"
+        elif _r == 4: _l6t += "🔥"
+        elif _r == 0: _l6t += "⚫"
+        else: _l6t += f"{_r}️⃣"
+    if _l6t: text += f"\n🎬 <b>Last balls:</b> {_l6t}"
     text += "\n━━━━━━━━━━━━━━━━━━━━━━"
-    
+    text += "\n⬜ Low  🟩 OK  🟧 Hot  🟥 On Fire!"
     try:
         await update.message.reply_text(text, parse_mode=ParseMode.HTML)
     except:
-        await update.message.reply_text(text.replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", ""))
+        await update.message.reply_text(text.replace("<b>","").replace("</b>","").replace("<i>","").replace("</i>",""))
 
 
 async def handle_my_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -15588,15 +16071,18 @@ async def days_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Send photo with caption to group
         caption = (
-            f"🏏 <b>REGISTRATION OPEN!</b>\n\n"
-            f"<b>Tournament:</b> {tournament_name}\n"
-            f"<b>Duration:</b> {days} days\n"
-            f"<b>Deadline:</b> {end_date.strftime('%d %b %Y')}\n\n"
-            f"<b>To Register:</b>\n"
-            f"1. DM @{context.bot.username}\n"
-            f"2. Send <code>/register</code>\n"
-            f"3. Select this tournament\n"
-            f"4. Choose base price"
+            f"🏆 <b>REGISTRATION OPEN!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📋 <b>Tournament:</b> {tournament_name}\n"
+            f"📅 <b>Duration:</b> {days} days\n"
+            f"⏰ <b>Deadline:</b> {end_date.strftime('%d %b %Y')}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📌 <b>How to Register:</b>\n"
+            f"1️⃣ DM @{context.bot.username}\n"
+            f"2️⃣ Send <code>/register</code>\n"
+            f"3️⃣ Pick your tournament & base price\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🍀 <i>Good luck to all participants!</i>"
         )
         
         await context.bot.send_photo(
@@ -15774,10 +16260,12 @@ async def reg_price_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         conn.close()
         
         await query.edit_message_text(
-            f"✅ <b>Registration Successful!</b>\n\n"
-            f"🏆 Tournament: <b>{group_name}</b>\n"
-            f"👤 Player: <b>{full_name}</b>\n"
-            f"💰 Base Price: <b>{base_price} coins</b>\n\n"
+            f"✅ <b>Registration Successful!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🏆 <b>Tournament:</b> {group_name}\n"
+            f"👤 <b>Player:</b> {full_name}\n"
+            f"💰 <b>Base Price:</b> {base_price} coins\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🍀 <i>May the best player win! Good luck!</i>",
             parse_mode=ParseMode.HTML
         )
@@ -15785,14 +16273,14 @@ async def reg_price_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         try:
             # Send photo with caption to the group
             registration_msg = (
-                f"🏏〔 <b>NEW PLAYER REGISTERED!</b> 〕🏏\n\n"
-                f"╔══════════════════════╗\n"
-                f"║  👤 {full_name}  ║\n"
-                f"╚══════════════════════╝\n\n"
-                f"🆔 ID: <code>{user_id}</code>\n"
-                f"💰 Base Price: <b>{base_price} coins</b>\n"
-                f"📱 Username: @{username if username != 'No username' else 'N/A'}\n\n"
-                f"🎊 <i>Welcome to <b>{group_name}</b> Tournament!</i>"
+                f"🎊 <b>NEW PLAYER REGISTERED!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 <b>{full_name}</b>\n"
+                f"🔖 @{username if username != 'No username' else 'N/A'}\n"
+                f"💰 <b>Base Price:</b> {base_price} coins\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🏆 Welcome to <b>{group_name}</b> Tournament!\n"
+                f"🍀 <i>Good luck, champion!</i>"
             )
             
             await context.bot.send_photo(
@@ -15806,12 +16294,11 @@ async def reg_price_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             # Fallback to text message
             try:
                 registration_msg = (
-                    f"🏏〔 <b>NEW PLAYER REGISTERED!</b> 〕🏏\n\n"
-                    f"👤 <b>{full_name}</b>\n"
-                    f"🆔 ID: <code>{user_id}</code>\n"
+                    f"🎊 <b>NEW PLAYER REGISTERED!</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 <b>{full_name}</b>  ┊  @{username if username != 'No username' else 'N/A'}\n"
                     f"💰 Base Price: <b>{base_price} coins</b>\n"
-                    f"📱 @{username if username != 'No username' else 'N/A'}\n\n"
-                    f"🎊 <i>Welcome to <b>{group_name}</b> Tournament!</i>"
+                    f"🏆 Welcome to <b>{group_name}</b> Tournament!"
                 )
                 await context.bot.send_message(group_id, registration_msg, parse_mode=ParseMode.HTML)
             except:
@@ -16169,6 +16656,236 @@ async def save_auction_results_to_db(group_id: int, auction):
 
 
 
+
+
+# ═══════════════════════════════════════════════════════════════
+# ⚡ NEW FEATURES — Scorecard Refresh, Reactions, Leaderboard
+# ═══════════════════════════════════════════════════════════════
+
+async def scorecard_refresh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🔄 Refresh scorecard from inline button"""
+    query = update.callback_query
+    await query.answer("🔄 Refreshing...", show_alert=False)
+    try:
+        group_id = int(query.data.split("_")[-1])
+    except Exception:
+        group_id = update.effective_chat.id
+
+    match = active_matches.get(group_id)
+    if not match:
+        await query.answer("❌ No active match!", show_alert=True)
+        return
+
+    def _inn_block(bat_team, label, bowl_team):
+        s  = f"🏏 <b>{html.escape(bat_team.name)}</b> — {label}\n"
+        s += f"📊 {bat_team.score}/{bat_team.wickets} ({bat_team.overs} ov)  +{bat_team.extras} extras\n"
+        s += "━━━━━━━━━━━━━━━━━━\n🏏 <b>BATTING</b>\n"
+        for pl in bat_team.players:
+            if pl.balls_faced > 0 or pl.is_out:
+                _sr = round((pl.runs / max(pl.balls_faced, 1)) * 100, 1)
+                _st = "❌" if pl.is_out else "🟢"
+                _bdry = f"  4️⃣{pl.boundaries}" if pl.boundaries else ""
+                _sx   = f"  🚀{pl.sixes}" if pl.sixes else ""
+                s += f"  {_st} <b>{html.escape(pl.first_name)}</b> {pl.runs}({pl.balls_faced}) SR:{_sr}{_bdry}{_sx}\n"
+        s += "⚾ <b>BOWLING</b>\n"
+        for pl in bowl_team.players:
+            if pl.balls_bowled > 0:
+                _ov   = format_overs(pl.balls_bowled)
+                _econ = round(pl.runs_conceded / max(pl.balls_bowled / 6, 0.1), 2)
+                s += f"  ⚡ <b>{html.escape(pl.first_name)}</b> {pl.wickets}W/{pl.runs_conceded}R ({_ov}ov) Eco:{_econ}\n"
+        return s
+
+    first  = match.batting_first or match.team_x
+    second = match.team_y if first == match.team_x else match.team_x
+
+    text  = "📊 <b>LIVE SCORECARD</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += _inn_block(first, "1st Innings", second)
+    if match.innings >= 2:
+        text += "━━━━━━━━━━━━━━━━━━━━━━\n"
+        text += _inn_block(second, "2nd Innings", first)
+        if match.target > 0:
+            _nd = match.target - second.score
+            _bl = (match.total_overs * 6) - second.balls
+            _rr = round(_nd / (_bl / 6), 2) if _bl > 0 else 0
+            text += f"🎯 Need <b>{_nd}</b> off <b>{_bl}</b> balls  (RRR: {_rr})\n"
+    # Partnership
+    if match.current_partnership_runs > 0:
+        text += f"🤝 <b>Partnership:</b> {match.current_partnership_runs}({match.current_partnership_balls})\n"
+
+    refresh_kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🔄 Refresh", callback_data=f"scorecard_refresh_{group_id}")
+    ]])
+    try:
+        await query.edit_message_caption(caption=text, parse_mode=ParseMode.HTML, reply_markup=refresh_kb)
+    except Exception:
+        try:
+            await query.edit_message_text(text=text, parse_mode=ParseMode.HTML, reply_markup=refresh_kb)
+        except Exception:
+            await query.answer("✅ Already up to date!", show_alert=False)
+
+
+async def reaction_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """💬 Handle quick reaction buttons"""
+    query = update.callback_query
+    user  = query.from_user
+    parts = query.data.split("_")
+    rtype = parts[1] if len(parts) > 1 else "nice"
+    emojis = {
+        "amazingw": "🔥 Amazing!", "funnyw": "😂 Hilarious!", "nicew": "👏 Nice one!",
+        "amazingw": "🔥 Amazing!", "wow": "🔥 Wow!", "smash": "🚀 Smashed it!",
+        "unreal": "😮 Unreal!", "nice": "👏 Nice!", "funny": "😂 Funny!",
+    }
+    txt = emojis.get(rtype, "👍 Nice!")
+    await query.answer(f"{txt}  — {user.first_name}", show_alert=False)
+
+
+async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🏆 Show global leaderboard with tabs"""
+    text  = "🏆 <b>CRICOVERSE GLOBAL LEADERBOARD</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += "🌍 Stats across <b>all groups</b> combined\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += "👇 Choose a category:"
+
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🏃 Top Runs",    callback_data="lb_runs"),
+         InlineKeyboardButton("⚾ Top Wickets", callback_data="lb_wickets")],
+        [InlineKeyboardButton("🏆 Most Wins",   callback_data="lb_wins"),
+         InlineKeyboardButton("🎯 Win Rate",    callback_data="lb_winrate")],
+        [InlineKeyboardButton("🚀 Most Sixes",  callback_data="lb_sixes"),
+         InlineKeyboardButton("🌟 MOM Awards",  callback_data="lb_mom")],
+    ])
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
+async def leaderboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle leaderboard tab buttons"""
+    query  = update.callback_query
+    await query.answer()
+    metric = query.data.replace("lb_", "")
+
+    medals = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"]
+
+    conn = sqlite3.connect(DB_PATH)
+    c    = conn.cursor()
+
+    if metric == "runs":
+        c.execute("""
+            SELECT first_name,
+                   (COALESCE(total_runs,0) + COALESCE(team_total_runs,0)) AS tr,
+                   (COALESCE(matches_played,0) + COALESCE(team_matches_played,0)) AS mp
+            FROM user_stats
+            WHERE (COALESCE(total_runs,0) + COALESCE(team_total_runs,0)) > 0
+            ORDER BY tr DESC LIMIT 10
+        """)
+        rows  = c.fetchall()
+        title = "🏃 TOP RUN SCORERS — ALL TIME"
+        lines = []
+        for i,(name,tr,mp) in enumerate(rows):
+            avg = round(tr/max(mp,1),1)
+            lines.append(f"{medals[i]} <b>{html.escape(name or 'Player')}</b>  {tr} runs  avg {avg}")
+
+    elif metric == "wickets":
+        c.execute("""
+            SELECT first_name,
+                   (COALESCE(total_wickets,0) + COALESCE(team_total_wickets,0)) AS tw
+            FROM user_stats
+            WHERE (COALESCE(total_wickets,0) + COALESCE(team_total_wickets,0)) > 0
+            ORDER BY tw DESC LIMIT 10
+        """)
+        rows  = c.fetchall()
+        title = "⚾ TOP WICKET TAKERS — ALL TIME"
+        lines = []
+        for i,(name,tw) in enumerate(rows):
+            lines.append(f"{medals[i]} <b>{html.escape(name or 'Player')}</b>  {tw} wickets")
+
+    elif metric == "wins":
+        c.execute("""
+            SELECT first_name,
+                   (COALESCE(matches_won,0) + COALESCE(team_matches_won,0)) AS tw,
+                   (COALESCE(matches_played,0) + COALESCE(team_matches_played,0)) AS tp
+            FROM user_stats
+            WHERE (COALESCE(matches_won,0) + COALESCE(team_matches_won,0)) > 0
+            ORDER BY tw DESC LIMIT 10
+        """)
+        rows  = c.fetchall()
+        title = "🏆 MOST MATCH WINS"
+        lines = []
+        for i,(name,tw,tp) in enumerate(rows):
+            lines.append(f"{medals[i]} <b>{html.escape(name or 'Player')}</b>  {tw}W / {tp} played")
+
+    elif metric == "winrate":
+        c.execute("""
+            SELECT first_name,
+                   (COALESCE(matches_won,0) + COALESCE(team_matches_won,0)) AS tw,
+                   (COALESCE(matches_played,0) + COALESCE(team_matches_played,0)) AS tp
+            FROM user_stats
+            WHERE (COALESCE(matches_played,0) + COALESCE(team_matches_played,0)) >= 5
+            ORDER BY CAST(tw AS REAL)/tp DESC LIMIT 10
+        """)
+        rows  = c.fetchall()
+        title = "🎯 BEST WIN RATE  (min 5 matches)"
+        lines = []
+        for i,(name,tw,tp) in enumerate(rows):
+            wr = round(tw/max(tp,1)*100,1)
+            lines.append(f"{medals[i]} <b>{html.escape(name or 'Player')}</b>  {wr}%  ({tw}/{tp})")
+
+    elif metric == "sixes":
+        c.execute("""
+            SELECT first_name,
+                   (COALESCE(total_sixes,0) + COALESCE(team_total_sixes,0)) AS ts
+            FROM user_stats
+            WHERE (COALESCE(total_sixes,0) + COALESCE(team_total_sixes,0)) > 0
+            ORDER BY ts DESC LIMIT 10
+        """)
+        rows  = c.fetchall()
+        title = "🚀 MOST SIXES HIT"
+        lines = []
+        for i,(name,ts) in enumerate(rows):
+            lines.append(f"{medals[i]} <b>{html.escape(name or 'Player')}</b>  {ts} 🚀")
+
+    elif metric == "mom":
+        c.execute("""
+            SELECT first_name, COALESCE(player_of_match_count,0) AS mom
+            FROM user_stats
+            WHERE COALESCE(player_of_match_count,0) > 0
+            ORDER BY mom DESC LIMIT 10
+        """)
+        rows  = c.fetchall()
+        title = "🌟 MOST MAN OF MATCH AWARDS"
+        lines = []
+        for i,(name,mom) in enumerate(rows):
+            lines.append(f"{medals[i]} <b>{html.escape(name or 'Player')}</b>  {mom} 🌟")
+
+    else:
+        lines = []
+        title = "Leaderboard"
+
+    conn.close()
+
+    text  = f"🏆 <b>{title}</b>\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━\n"
+    if lines:
+        text += "\n".join(lines)
+    else:
+        text += "<i>No data yet — play some matches! 🏏</i>"
+    text += "\n━━━━━━━━━━━━━━━━━━━━━━"
+
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🏃 Runs",    callback_data="lb_runs"),
+         InlineKeyboardButton("⚾ Wickets", callback_data="lb_wickets")],
+        [InlineKeyboardButton("🏆 Wins",    callback_data="lb_wins"),
+         InlineKeyboardButton("🎯 Win Rate",callback_data="lb_winrate")],
+        [InlineKeyboardButton("🚀 Sixes",   callback_data="lb_sixes"),
+         InlineKeyboardButton("🌟 MOM",     callback_data="lb_mom")],
+    ])
+    try:
+        await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+    except Exception:
+        await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
 def main():
     """Start the bot"""
 
@@ -16215,6 +16932,8 @@ def main():
     # Stats & Analytics
     application.add_handler(CommandHandler("strikemap", strikemap_command))
     application.add_handler(CommandHandler("momentum", momentum_command))
+    application.add_handler(CommandHandler("leaderboard", leaderboard_command))
+    application.add_handler(CommandHandler("lb", leaderboard_command))
 
     application.add_handler(CommandHandler("commentary", commentary_command))
     application.add_handler(CommandHandler("players", players_command))
@@ -16319,6 +17038,9 @@ def main():
     application.add_handler(CallbackQueryHandler(midauc_base_callback, pattern="^midauc_base_"))
     application.add_handler(CallbackQueryHandler(bulk_base_price_callback, pattern="^bulk_base_"))
 
+    application.add_handler(CallbackQueryHandler(scorecard_refresh_callback, pattern="^scorecard_refresh_"))
+    application.add_handler(CallbackQueryHandler(reaction_callback, pattern="^react_"))
+    application.add_handler(CallbackQueryHandler(leaderboard_callback, pattern="^lb_"))
     application.add_handler(CallbackQueryHandler(drs_callback, pattern="^drs_(take|reject)$"))
     application.add_handler(
         CallbackQueryHandler(mode_selection_callback, pattern="^mode_")
@@ -16404,7 +17126,7 @@ def main():
 if __name__ == "__main__":
     import os
     from aiohttp import web
-    S
+    
     # Get PORT from environment (required for deployment platforms like Render/Railway)
     PORT = int(os.environ.get('PORT', 8080))
     

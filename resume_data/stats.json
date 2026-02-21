@@ -1,5 +1,5 @@
 {
-  "7460266461": {
+  "1473342200": {
     "team": {
       "matches": 0,
       "matches_played": 0,
@@ -31,7 +31,7 @@
       "top_3_finishes": 0
     }
   },
-  "5398692357": {
+  "5607494947": {
     "team": {
       "matches": 0,
       "matches_played": 0,
@@ -53,241 +53,113 @@
       "captain_wins": 0
     },
     "solo": {
-      "matches": 1,
+      "matches": 0,
       "wins": 0,
-      "runs": 15,
-      "balls": 4,
+      "runs": 0,
+      "balls": 0,
       "wickets": 0,
-      "highest": 15,
+      "highest": 0,
       "ducks": 0,
-      "top_3_finishes": 1
+      "top_3_finishes": 0
+    }
+  },
+  "6382283680": {
+    "team": {
+      "matches": 0,
+      "matches_played": 0,
+      "wins": 0,
+      "runs": 0,
+      "balls": 0,
+      "wickets": 0,
+      "runs_conceded": 0,
+      "balls_bowled": 0,
+      "highest": 0,
+      "centuries": 0,
+      "fifties": 0,
+      "ducks": 0,
+      "sixes": 0,
+      "fours": 0,
+      "mom": 0,
+      "hat_tricks": 0,
+      "captain_matches": 0,
+      "captain_wins": 0
+    },
+    "solo": {
+      "matches": 0,
+      "wins": 0,
+      "runs": 0,
+      "balls": 0,
+      "wickets": 0,
+      "highest": 0,
+      "ducks": 0,
+      "top_3_finishes": 0
+    }
+  },
+  "8220258779": {
+    "team": {
+      "matches": 0,
+      "matches_played": 0,
+      "wins": 0,
+      "runs": 0,
+      "balls": 0,
+      "wickets": 0,
+      "runs_conceded": 0,
+      "balls_bowled": 0,
+      "highest": 0,
+      "centuries": 0,
+      "fifties": 0,
+      "ducks": 0,
+      "sixes": 0,
+      "fours": 0,
+      "mom": 0,
+      "hat_tricks": 0,
+      "captain_matches": 0,
+      "captain_wins": 0
+    },
+    "solo": {
+      "matches": 0,
+      "wins": 0,
+      "runs": 0,
+      "balls": 0,
+      "wickets": 0,
+      "highest": 0,
+      "ducks": 0,
+      "top_3_finishes": 0
+    }
+  },
+  "8571320811": {
+    "team": {
+      "matches": 0,
+      "matches_played": 0,
+      "wins": 0,
+      "runs": 0,
+      "balls": 0,
+      "wickets": 0,
+      "runs_conceded": 0,
+      "balls_bowled": 0,
+      "highest": 0,
+      "centuries": 0,
+      "fifties": 0,
+      "ducks": 0,
+      "sixes": 0,
+      "fours": 0,
+      "mom": 0,
+      "hat_tricks": 0,
+      "captain_matches": 0,
+      "captain_wins": 0
+    },
+    "solo": {
+      "matches": 0,
+      "wins": 0,
+      "runs": 0,
+      "balls": 0,
+      "wickets": 0,
+      "highest": 0,
+      "ducks": 0,
+      "top_3_finishes": 0
     }
   },
   "8585138935": {
-    "team": {
-      "matches": 0,
-      "matches_played": 0,
-      "wins": 0,
-      "runs": 0,
-      "balls": 0,
-      "wickets": 0,
-      "runs_conceded": 0,
-      "balls_bowled": 0,
-      "highest": 0,
-      "centuries": 0,
-      "fifties": 0,
-      "ducks": 0,
-      "sixes": 0,
-      "fours": 0,
-      "mom": 0,
-      "hat_tricks": 0,
-      "captain_matches": 0,
-      "captain_wins": 0
-    },
-    "solo": {
-      "matches": 1,
-      "wins": 0,
-      "runs": 6,
-      "balls": 1,
-      "wickets": 0,
-      "highest": 6,
-      "ducks": 0,
-      "top_3_finishes": 1
-    }
-  },
-  "5746947214": {
-    "team": {
-      "matches": 0,
-      "matches_played": 0,
-      "wins": 0,
-      "runs": 0,
-      "balls": 0,
-      "wickets": 0,
-      "runs_conceded": 0,
-      "balls_bowled": 0,
-      "highest": 0,
-      "centuries": 0,
-      "fifties": 0,
-      "ducks": 0,
-      "sixes": 0,
-      "fours": 0,
-      "mom": 0,
-      "hat_tricks": 0,
-      "captain_matches": 0,
-      "captain_wins": 0
-    },
-    "solo": {
-      "matches": 0,
-      "wins": 0,
-      "runs": 0,
-      "balls": 0,
-      "wickets": 0,
-      "highest": 0,
-      "ducks": 0,
-      "top_3_finishes": 0
-    }
-  },
-  "914010588": {
-    "team": {
-      "matches": 0,
-      "matches_played": 0,
-      "wins": 0,
-      "runs": 0,
-      "balls": 0,
-      "wickets": 0,
-      "runs_conceded": 0,
-      "balls_bowled": 0,
-      "highest": 0,
-      "centuries": 0,
-      "fifties": 0,
-      "ducks": 0,
-      "sixes": 0,
-      "fours": 0,
-      "mom": 0,
-      "hat_tricks": 0,
-      "captain_matches": 0,
-      "captain_wins": 0
-    },
-    "solo": {
-      "matches": 0,
-      "wins": 0,
-      "runs": 0,
-      "balls": 0,
-      "wickets": 0,
-      "highest": 0,
-      "ducks": 0,
-      "top_3_finishes": 0
-    }
-  },
-  "7523388564": {
-    "team": {
-      "matches": 0,
-      "matches_played": 0,
-      "wins": 0,
-      "runs": 0,
-      "balls": 0,
-      "wickets": 0,
-      "runs_conceded": 0,
-      "balls_bowled": 0,
-      "highest": 0,
-      "centuries": 0,
-      "fifties": 0,
-      "ducks": 0,
-      "sixes": 0,
-      "fours": 0,
-      "mom": 0,
-      "hat_tricks": 0,
-      "captain_matches": 0,
-      "captain_wins": 0
-    },
-    "solo": {
-      "matches": 0,
-      "wins": 0,
-      "runs": 0,
-      "balls": 0,
-      "wickets": 0,
-      "highest": 0,
-      "ducks": 0,
-      "top_3_finishes": 0
-    }
-  },
-  "8075803678": {
-    "team": {
-      "matches": 0,
-      "matches_played": 0,
-      "wins": 0,
-      "runs": 0,
-      "balls": 0,
-      "wickets": 0,
-      "runs_conceded": 0,
-      "balls_bowled": 0,
-      "highest": 0,
-      "centuries": 0,
-      "fifties": 0,
-      "ducks": 0,
-      "sixes": 0,
-      "fours": 0,
-      "mom": 0,
-      "hat_tricks": 0,
-      "captain_matches": 0,
-      "captain_wins": 0
-    },
-    "solo": {
-      "matches": 1,
-      "wins": 1,
-      "runs": 19,
-      "balls": 4,
-      "wickets": 0,
-      "highest": 19,
-      "ducks": 0,
-      "top_3_finishes": 1
-    }
-  },
-  "5652458239": {
-    "team": {
-      "matches": 0,
-      "matches_played": 0,
-      "wins": 0,
-      "runs": 0,
-      "balls": 0,
-      "wickets": 0,
-      "runs_conceded": 0,
-      "balls_bowled": 0,
-      "highest": 0,
-      "centuries": 0,
-      "fifties": 0,
-      "ducks": 0,
-      "sixes": 0,
-      "fours": 0,
-      "mom": 0,
-      "hat_tricks": 0,
-      "captain_matches": 0,
-      "captain_wins": 0
-    },
-    "solo": {
-      "matches": 1,
-      "wins": 0,
-      "runs": 5,
-      "balls": 1,
-      "wickets": 0,
-      "highest": 5,
-      "ducks": 0,
-      "top_3_finishes": 0
-    }
-  },
-  "8046759728": {
-    "team": {
-      "matches": 0,
-      "matches_played": 0,
-      "wins": 0,
-      "runs": 0,
-      "balls": 0,
-      "wickets": 0,
-      "runs_conceded": 0,
-      "balls_bowled": 0,
-      "highest": 0,
-      "centuries": 0,
-      "fifties": 0,
-      "ducks": 0,
-      "sixes": 0,
-      "fours": 0,
-      "mom": 0,
-      "hat_tricks": 0,
-      "captain_matches": 0,
-      "captain_wins": 0
-    },
-    "solo": {
-      "matches": 0,
-      "wins": 0,
-      "runs": 0,
-      "balls": 0,
-      "wickets": 0,
-      "highest": 0,
-      "ducks": 0,
-      "top_3_finishes": 0
-    }
-  },
-  "8496314380": {
     "team": {
       "matches": 0,
       "matches_played": 0,
