@@ -3,6 +3,7 @@ CRICOVERSE - Professional Hand Cricket Telegram Bot
 A feature-rich, group-based Hand Cricket game engine
 Fixed version - No circular imports
 """
+
 # ═══════════════════════════════════════════════════════════════
 # STEP 1: Import all standard libraries first
 # ═══════════════════════════════════════════════════════════════
@@ -10416,115 +10417,6 @@ async def save_match_to_history(match, winner_team: str):
     conn.commit()
     conn.close()
 
-async def generate_mystats_card(user_id: int, user_name: str, context) -> BytesIO | None:
-    """Generate a visual stats card image for /mystats using PIL"""
-    try:
-        # Get user's profile photo
-        profile_photo = None
-        try:
-            photos = await context.bot.get_user_profile_photos(user_id, limit=1)
-            if photos.photos:
-                photo_file = await photos.photos[0][-1].get_file()
-                photo_bytes = await photo_file.download_as_bytearray()
-                profile_photo = Image.open(BytesIO(photo_bytes)).convert("RGBA")
-        except:
-            pass
-
-        # Card dimensions
-        W, H = 600, 320
-        card = Image.new("RGBA", (W, H), (15, 20, 35, 255))  # dark navy bg
-        draw = ImageDraw.Draw(card)
-
-        # Gradient overlay
-        for y in range(H):
-            alpha = int(30 + (y / H) * 60)
-            draw.line([(0, y), (W, y)], fill=(0, 80, 160, alpha))
-
-        # Cricket pitch lines
-        for x in range(0, W, 40):
-            draw.line([(x, 0), (x, H)], fill=(255, 255, 255, 8))
-
-        # Accent bar top
-        draw.rectangle([(0, 0), (W, 5)], fill=(0, 180, 255, 255))
-        draw.rectangle([(0, H-5), (W, H)], fill=(0, 180, 255, 255))
-
-        # Profile photo circle (left side)
-        try:
-            if profile_photo:
-                pf = profile_photo.resize((100, 100))
-                # Circular mask
-                mask = Image.new("L", (100, 100), 0)
-                md = ImageDraw.Draw(mask)
-                md.ellipse([(0,0),(99,99)], fill=255)
-                pf.putalpha(mask)
-                card.paste(pf, (30, 110), pf)
-                # Circle border
-                draw.ellipse([(28, 108), (130, 210)], outline=(0, 180, 255, 255), width=3)
-            else:
-                draw.ellipse([(28, 108), (130, 210)], fill=(30, 60, 100, 255), outline=(0, 180, 255, 200), width=3)
-                draw.text((79, 159), "🏏", fill=(255,255,255,200), anchor="mm")
-        except:
-            pass
-
-        # Fonts (fallback to default)
-        try:
-            font_big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
-            font_med = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
-            font_sm = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
-        except:
-            font_big = font_med = font_sm = ImageFont.load_default()
-
-        # Name
-        draw.text((160, 30), "CRICOVERSE", fill=(0, 180, 255, 255), font=font_med)
-        draw.text((160, 58), user_name.upper(), fill=(255, 255, 255, 255), font=font_big)
-        draw.text((160, 86), f"🆔 {user_id}", fill=(150, 180, 220, 255), font=font_sm)
-
-        # Divider
-        draw.line([(160, 115), (570, 115)], fill=(0, 180, 255, 180), width=1)
-
-        # Fetch quick stats from DB
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("SELECT matches_played, matches_won, total_runs, highest_score, total_wickets FROM user_stats WHERE user_id=?", (user_id,))
-            row = c.fetchone() or (0,0,0,0,0)
-            conn.close()
-            matches, wins, runs, hs, wkts = row
-        except:
-            matches = wins = runs = hs = wkts = 0
-
-        win_rate = f"{round(wins/matches*100,1)}%" if matches > 0 else "0%"
-
-        # Stats grid
-        stats = [
-            ("MATCHES", str(matches)), ("WINS", str(wins)),
-            ("WIN%", win_rate), ("RUNS", str(runs)),
-            ("HS", str(hs)), ("WICKETS", str(wkts))
-        ]
-        x_start = 160
-        for i, (label, val) in enumerate(stats):
-            col = i % 3
-            row_n = i // 3
-            bx = x_start + col * 140
-            by = 130 + row_n * 75
-            draw.rectangle([(bx, by), (bx+128, by+60)], fill=(20, 40, 80, 200), outline=(0, 180, 255, 100), width=1)
-            draw.text((bx+64, by+20), val, fill=(255, 255, 255, 255), font=font_big, anchor="mt")
-            draw.text((bx+64, by+45), label, fill=(0, 180, 255, 255), font=font_sm, anchor="mt")
-
-        # Player name bottom left
-        draw.text((30, 230), user_name, fill=(200, 220, 255, 255), font=font_med)
-        draw.text((30, 255), "🏏 Cricket Profile", fill=(100, 140, 200, 200), font=font_sm)
-        draw.text((30, 280), "tap buttons below for details ›", fill=(80, 110, 160, 200), font=font_sm)
-
-        # Save to BytesIO
-        bio = BytesIO()
-        card.convert("RGB").save(bio, format="JPEG", quality=90)
-        bio.seek(0)
-        return bio
-    except Exception as e:
-        logger.error(f"Stats card generation error: {e}")
-        return None
-
 
 async def mystats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """🏏 Interactive cricket stats — per-mode with photo card"""
@@ -10557,32 +10449,21 @@ async def mystats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         caption += "👇 <i>Select a mode to view your stats!</i>"
         
         try:
-            # Generate stats card image
-            card_bio = await generate_mystats_card(user_id, user_name, context)
-            
-            if card_bio:
+            # Use scorecard photo (already available in MEDIA_ASSETS)
+            stats_photo = MEDIA_ASSETS.get("botstats")
+            if stats_photo:
                 await update.message.reply_photo(
-                    photo=card_bio,
+                    photo=stats_photo,
                     caption=caption,
                     parse_mode=ParseMode.HTML,
                     reply_markup=reply_markup
                 )
             else:
-                # Fallback: try saved photo
-                stats_photo = MEDIA_ASSETS.get("stats") or MYSTATS_IMAGE_FILE_ID
-                if stats_photo and stats_photo != "YOUR_MYSTATS_IMAGE_FILE_ID_HERE":
-                    await update.message.reply_photo(
-                        photo=stats_photo,
-                        caption=caption,
-                        parse_mode=ParseMode.HTML,
-                        reply_markup=reply_markup
-                    )
-                else:
-                    await update.message.reply_text(
-                        caption,
-                        parse_mode=ParseMode.HTML,
-                        reply_markup=reply_markup
-                    )
+                await update.message.reply_text(
+                    caption,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=reply_markup
+                )
         except Exception as e:
             logger.error(f"mystats send error: {e}")
             await update.message.reply_text("🏏 Error loading stats. Try again!")
