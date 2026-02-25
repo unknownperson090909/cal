@@ -1,8 +1,14 @@
 {
-  "-1003334573423": {
-    "group_id": -1003334573423,
-    "group_name": "Gameverse \ud83d\udd25",
+  "-1003601646719": {
+    "group_id": -1003601646719,
+    "group_name": "ILT T10 League",
     "total_matches": 0,
-    "commentary_style": "shubh"
+    "commentary_style": "english"
+  },
+  "-1002707382739": {
+    "group_id": -1002707382739,
+    "group_name": "ONLY SHU\u00dfH \u2604 & JHANVI",
+    "total_matches": 0,
+    "commentary_style": "english"
   }
 }
