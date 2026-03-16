@@ -8948,7 +8948,7 @@ async def trigger_solo_ball(context, chat_id, match):
     # Calculate Strike Rate
     sr = round((batter.runs / batter.balls_faced) * 100, 1) if batter.balls_faced > 0 else 0
     
-    msg = f"🔴 <b>LIVE</b>\n"s
+    msg = f"🔴 <b>LIVE</b>\n"
     msg += "━━━━━━━━━━━━━━━━━━━━━\n"
     msg += f"⚾ <b>{bowl_tag}</b> is going for run up...\n"
     msg += f"🔄 <b>Spell:</b> Ball {match.solo_balls_this_spell + 1}/3\n"
